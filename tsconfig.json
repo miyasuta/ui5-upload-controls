@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+      "target": "es2022",
+      "module": "es2022",
+      "moduleResolution": "node",
+      "skipLibCheck": true,
+      "allowJs": true,
+      "strict": true,
+      "strictPropertyInitialization": false,
+      "rootDir": "./",
+      "outDir": "./dist",
+      "baseUrl": "./",
+      "typeRoots": [
+        "./node_modules/@types",
+        "./node_modules/@sapui5/types"
+      ],
+      "paths": {
+          "miyasuta/ui5uploadcontrols/*": [
+              "./src/miyasuta/ui5uploadcontrols/*"
+          ]
+      }
+  },
+  "include": [
+      "./src/**/*",
+      "./test/**/*"
+  ]
+}
