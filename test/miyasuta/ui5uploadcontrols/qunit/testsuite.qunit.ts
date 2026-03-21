@@ -24,10 +24,10 @@ sap.ui.define(function() {
 			module: "./{name}.qunit"
 		},
 		tests: {
-			// test file for the Example control
-			Example: {
-				title: "QUnit Test for Example",
-				_alternativeTitle: "QUnit tests: miyasuta.ui5uploadcontrols.Example"
+			// test file for the SingleFileUpload control
+			SingleFileUpload: {
+				title: "QUnit Test for SingleFileUpload",
+				_alternativeTitle: "QUnit tests: miyasuta.ui5uploadcontrols.SingleFileUpload"
 			}
 		}
 	};

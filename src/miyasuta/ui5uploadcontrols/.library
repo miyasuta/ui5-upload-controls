@@ -10,5 +10,11 @@
 		<dependency>
 			<libraryName>sap.ui.core</libraryName>
 		</dependency>
+		<dependency>
+			<libraryName>sap.m</libraryName>
+		</dependency>
+		<dependency>
+			<libraryName>sap.ui.unified</libraryName>
+		</dependency>
 	</dependencies>
 </library>

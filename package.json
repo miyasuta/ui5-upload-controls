@@ -20,7 +20,7 @@
     "build": "run-p -l build-app build-interface",
     "deploy": "fiori verify",
     "deploy-config": "fiori add deploy-config",
-    "start": "fiori run --open \"test-resources/miyasuta/ui5uploadcontrols/Example.html\"",
+    "start": "fiori run --open \"test-resources/miyasuta/ui5uploadcontrols/SingleFileUpload.html\"",
     "testsuite": "fiori run --open test-resources/miyasuta/ui5uploadcontrols/qunit/testsuite.qunit.html",
     "test": "karma start --browsers=ChromeHeadless --singleRun=true",
     "build-app": "ui5 build --config=ui5.yaml --clean-dest --dest dist",
