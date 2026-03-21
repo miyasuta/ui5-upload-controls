@@ -171,3 +171,30 @@ npm start          # launches test page (SingleFileUpload.html)
 npm test           # runs QUnit tests headless (Karma)
 npm run testsuite  # opens QUnit test suite in browser
 ```
+
+## Testing Notes
+
+### Mocking `fetch` in QUnit tests (Sinon v4 + Chrome Headless)
+
+**Do NOT use `stub.onCall(n).resolves(new Response(...))`** for multiple call sequences.
+This combination causes the test to hang indefinitely in Chrome Headless (Karma disconnects after 30 s with "Some of your tests did a full page reload!").
+
+**Use `stub.callsFake(fn)` instead**, tracking the call index manually:
+
+```ts
+// ❌ Hangs in Chrome Headless
+fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
+fetchStub.onCall(1).resolves(new Response(JSON.stringify({...}), { status: 200 }));
+fetchStub.resolves(new Response(null, { status: 200 }));
+
+// ✅ Works reliably
+fetchStub.callsFake(function() {
+    const i = fetchStub.callCount - 1;
+    if (i === 0) return Promise.resolve({ ok: true, headers: { get: (n) => n === "x-csrf-token" ? "tok" : null } });
+    if (i === 1) return Promise.resolve({ ok: true, json: () => Promise.resolve({ "@odata.id": "..." }) });
+    return Promise.resolve({ ok: true });
+});
+```
+
+> Using plain objects instead of real `Response` instances also avoids potential issues
+> with `Response` body streams being consumed across test runs.

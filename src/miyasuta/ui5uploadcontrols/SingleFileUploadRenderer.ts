@@ -23,6 +23,12 @@ const SingleFileUploadRenderer = {
 		rm.class("miyasutaSingleFileUpload");
 		rm.openEnd();
 
+		// Render filename download link (visible only when a file exists)
+		const filenameLink = control.getAggregation("_filenameLink") as import("sap/m/Link").default;
+		if (filenameLink) {
+			rm.renderControl(filenameLink);
+		}
+
 		// Render the internal FileUploader
 		const fileUploader = control.getAggregation("_fileUploader") as import("sap/ui/unified/FileUploader").default;
 		if (fileUploader) {
