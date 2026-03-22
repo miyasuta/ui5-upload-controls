@@ -7,6 +7,7 @@ import Control from "sap/ui/core/Control";
 import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
+import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import SingleFileUploadRenderer from "./SingleFileUploadRenderer";
 
 /**
@@ -64,6 +65,14 @@ export default class SingleFileUpload extends Control {
 				type: "boolean",
 				group: "Behavior",
 				defaultValue: true
+			},
+			/**
+			 * Width of the control wrapper.
+			 */
+			width: {
+				type: "sap.ui.core.CSSSize",
+				group: "Appearance",
+				defaultValue: "auto"
 			}
 		},
 		aggregations: {
@@ -82,7 +91,7 @@ export default class SingleFileUpload extends Control {
 		});
 		this.setAggregation("_fileUploader", oFileUploader);
 
-		const oLink = new Link({ visible: false });
+		const oLink = new Link({ visible: false, target: "_blank" });
 		this.setAggregation("_filenameLink", oLink);
 	}
 
@@ -157,6 +166,16 @@ export default class SingleFileUpload extends Control {
 			}
 
 			console.info("SingleFileUpload: upload completed", file.name);
+
+			// Update the filename link directly — we already know the file name,
+			// so there's no need to wait for a model refresh to update the UI.
+			const filenameLink = this.getAggregation("_filenameLink") as Link;
+			const contentUrl = `${serviceUrl}${entityPath}/${this.getContentProperty()}`;
+			filenameLink.setText(file.name);
+			filenameLink.setHref(contentUrl);
+			filenameLink.setVisible(true);
+
+			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
 			console.error("SingleFileUpload: upload failed", error);
 		}

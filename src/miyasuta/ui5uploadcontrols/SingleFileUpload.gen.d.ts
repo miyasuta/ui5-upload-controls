@@ -1,3 +1,4 @@
+import { CSSSize } from "sap/ui/core/library";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import { $ControlSettings } from "sap/ui/core/Control";
 
@@ -29,6 +30,11 @@ declare module "./SingleFileUpload" {
         When false, upload is always enabled and draft lifecycle is managed automatically.
          */
         draftOnly?: boolean | PropertyBindingInfo | `{${string}}`;
+
+        /**
+         * Width of the control wrapper.
+         */
+        width?: CSSSize | PropertyBindingInfo | `{${string}}`;
     }
 
     export default interface SingleFileUpload {
@@ -84,5 +90,17 @@ declare module "./SingleFileUpload" {
         When false, upload is always enabled and draft lifecycle is managed automatically.
          */
         setDraftOnly(draftOnly: boolean): this;
+
+        // property: width
+
+        /**
+         * Width of the control wrapper.
+         */
+        getWidth(): CSSSize;
+
+        /**
+         * Width of the control wrapper.
+         */
+        setWidth(width: CSSSize): this;
     }
 }

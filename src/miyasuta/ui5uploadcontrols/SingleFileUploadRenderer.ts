@@ -21,6 +21,7 @@ const SingleFileUploadRenderer = {
 	render: function (rm: RenderManager, control: SingleFileUpload) {
 		rm.openStart("div", control);
 		rm.class("miyasutaSingleFileUpload");
+		rm.style("width", control.getWidth());
 		rm.openEnd();
 
 		// Render filename download link (visible only when a file exists)
