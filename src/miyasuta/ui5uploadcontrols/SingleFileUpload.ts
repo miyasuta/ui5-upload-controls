@@ -7,6 +7,7 @@ import Control from "sap/ui/core/Control";
 import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
+import Button from "sap/m/Button";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import SingleFileUploadRenderer from "./SingleFileUploadRenderer";
 
@@ -77,7 +78,8 @@ export default class SingleFileUpload extends Control {
 		},
 		aggregations: {
 			_fileUploader: { type: "sap.ui.unified.FileUploader", multiple: false, visibility: "hidden" },
-			_filenameLink: { type: "sap.m.Link", multiple: false, visibility: "hidden" }
+			_filenameLink: { type: "sap.m.Link", multiple: false, visibility: "hidden" },
+			_deleteButton: { type: "sap.m.Button", multiple: false, visibility: "hidden" }
 		},
 		events: {}
 	};
@@ -93,6 +95,13 @@ export default class SingleFileUpload extends Control {
 
 		const oLink = new Link({ visible: false, target: "_blank" });
 		this.setAggregation("_filenameLink", oLink);
+
+		const oDeleteButton = new Button({
+			icon: "sap-icon://decline",
+			visible: false,
+			press: this._onDeletePress.bind(this)
+		});
+		this.setAggregation("_deleteButton", oDeleteButton);
 	}
 
 	override onBeforeRendering(): void {
@@ -117,9 +126,10 @@ export default class SingleFileUpload extends Control {
 			fileUploader.setEnabled(true);
 		}
 
-		// Filename display: show download link when a file name exists
+		// Filename display: show download link and delete button when a file name exists
 		const fileNameProp = this.getFileNameProperty();
 		const fileName = fileNameProp ? (obj?.[fileNameProp] as string) : undefined;
+		const deleteButton = this.getAggregation("_deleteButton") as Button;
 		if (fileName) {
 			const model = context.getModel() as unknown as { getServiceUrl(): string };
 			const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
@@ -128,8 +138,22 @@ export default class SingleFileUpload extends Control {
 			filenameLink.setText(fileName);
 			filenameLink.setHref(contentUrl);
 			filenameLink.setVisible(true);
+			deleteButton.setVisible(true);
+			deleteButton.setEnabled(fileUploader.getEnabled());
 		} else {
 			filenameLink.setVisible(false);
+			deleteButton.setVisible(false);
+
+			// If context object data hasn't loaded yet, request fileName specifically.
+			// requestObject(path) triggers a server fetch if the property isn't cached,
+			// unlike requestObject() which only returns whatever is currently in cache.
+			if ((obj === undefined || obj === null) && fileNameProp) {
+				(context as unknown as ODataV4Context).requestObject(fileNameProp).then((value: unknown) => {
+					if (value) {
+						this.invalidate();
+					}
+				}).catch(() => {/* ignore load errors */});
+			}
 		}
 	}
 
@@ -167,13 +191,17 @@ export default class SingleFileUpload extends Control {
 
 			console.info("SingleFileUpload: upload completed", file.name);
 
-			// Update the filename link directly — we already know the file name,
+			// Update the filename link and delete button directly — we already know the file name,
 			// so there's no need to wait for a model refresh to update the UI.
 			const filenameLink = this.getAggregation("_filenameLink") as Link;
 			const contentUrl = `${serviceUrl}${entityPath}/${this.getContentProperty()}`;
 			filenameLink.setText(file.name);
 			filenameLink.setHref(contentUrl);
 			filenameLink.setVisible(true);
+
+			const deleteButton = this.getAggregation("_deleteButton") as Button;
+			deleteButton.setVisible(true);
+			deleteButton.setEnabled(true);
 
 			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
@@ -245,6 +273,44 @@ export default class SingleFileUpload extends Control {
 		});
 		if (!activateResponse.ok) {
 			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
+		}
+	}
+
+	async _onDeletePress(): Promise<void> {
+		const modelName = this.getModelName() || undefined;
+		const context = this.getBindingContext(modelName);
+		if (!context) {
+			return;
+		}
+
+		const model = context.getModel() as unknown as { getServiceUrl(): string };
+		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
+		const entityPath = context.getPath();
+		const entityUrl = serviceUrl + entityPath;
+
+		try {
+			const csrfToken = await this._fetchCsrfToken(serviceUrl);
+
+			const patchResponse = await fetch(entityUrl, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					"x-csrf-token": csrfToken
+				},
+				body: JSON.stringify({ [this.getContentProperty()]: null })
+			});
+			if (!patchResponse.ok) {
+				throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
+			}
+
+			const filenameLink = this.getAggregation("_filenameLink") as Link;
+			const deleteButton = this.getAggregation("_deleteButton") as Button;
+			filenameLink.setVisible(false);
+			deleteButton.setVisible(false);
+
+			(context as unknown as ODataV4Context).refresh();
+		} catch (error) {
+			console.error("SingleFileUpload: delete failed", error);
 		}
 	}
 

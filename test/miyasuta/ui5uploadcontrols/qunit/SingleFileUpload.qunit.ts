@@ -136,6 +136,34 @@ sap.ui.define([
 		}.bind(this));
 	});
 
+	QUnit.test("shows delete button after successful upload", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Quotations(guid'123')"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; },
+			refresh: function() {}
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.onCall(0).resolves(new Response(null, {
+			status: 200,
+			headers: { "x-csrf-token": "test-token" }
+		}));
+		this.fetchStub.resolves(new Response(null, { status: 200 }));
+
+		const mockFile = new File(["hello"], "myfile.txt", { type: "text/plain" });
+		const mockEvent = { getParameter: () => [mockFile] };
+
+		this.oControl._onFileChange(mockEvent).then(function() {
+			const oButton = this.oControl.getAggregation("_deleteButton");
+			assert.strictEqual(oButton.getVisible(), true, "delete button is visible after upload");
+			assert.strictEqual(oButton.getEnabled(), true, "delete button is enabled after upload");
+			done();
+		}.bind(this));
+	});
+
 	QUnit.test("PATCHes filename then PUTs binary content with CSRF token", function(assert) {
 		const done = assert.async();
 
@@ -452,6 +480,50 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		oControl.destroy();
 	});
 
+	QUnit.test("requests object data asynchronously when context has no data and invalidates when fileName loads", function(assert) {
+		const done = assert.async();
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return undefined; },
+			requestObject: function(path) { return path === "fileName" ? Promise.resolve("report.pdf") : Promise.resolve(undefined); }
+		};
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		const invalidateSpy = sinon.spy(oControl, "invalidate");
+
+		oControl.onBeforeRendering();
+
+		Promise.resolve().then(function() {
+			assert.ok(invalidateSpy.calledOnce, "invalidate() called after async data load with fileName");
+			oControl.destroy();
+			done();
+		});
+	});
+
+	QUnit.test("does not invalidate when async data has no fileName", function(assert) {
+		const done = assert.async();
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return undefined; },
+			requestObject: function(path) { return path === "fileName" ? Promise.resolve("") : Promise.resolve(undefined); }
+		};
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		const invalidateSpy = sinon.spy(oControl, "invalidate");
+
+		oControl.onBeforeRendering();
+
+		Promise.resolve().then(function() {
+			assert.ok(invalidateSpy.notCalled, "invalidate() not called when no fileName in loaded data");
+			oControl.destroy();
+			done();
+		});
+	});
+
 	QUnit.test("filename link is hidden when fileName is empty", function(assert) {
 		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
 		sinon.stub(oControl, "getBindingContext").returns({
@@ -465,6 +537,161 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		const oLink = oControl.getAggregation("_filenameLink");
 		assert.strictEqual(oLink.getVisible(), false, "link is hidden when no file exists");
 		oControl.destroy();
+	});
+
+	// ─── File Deletion ─────────────────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - File Deletion", {
+		beforeEach: function() {
+			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", draftOnly: true });
+			this.fetchStub = sinon.stub(window, "fetch");
+		},
+		afterEach: function() {
+			this.fetchStub.restore();
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("_deleteButton aggregation exists", function(assert) {
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.ok(oButton, "_deleteButton aggregation exists");
+	});
+
+	QUnit.test("delete button is hidden when no file exists", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "" }; }
+		});
+		this.oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.strictEqual(oButton.getVisible(), false, "delete button is hidden when no file");
+	});
+
+	QUnit.test("delete button is visible when file exists", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+		});
+		this.oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.strictEqual(oButton.getVisible(), true, "delete button is visible when file exists");
+	});
+
+	QUnit.test("delete button is enabled when FileUploader is enabled", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+		});
+		this.oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.strictEqual(oButton.getEnabled(), true, "delete button is enabled in edit mode");
+	});
+
+	QUnit.test("delete button is disabled when FileUploader is disabled (active entity + draftOnly)", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: true, fileName: "report.pdf" }; }
+		});
+		this.oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.strictEqual(oButton.getEnabled(), false, "delete button is disabled in display mode");
+	});
+
+	QUnit.test("delete sends CSRF token fetch then PATCH with contentProperty=null", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			refresh: function() {}
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(name) { return name === "x-csrf-token" ? "del-token" : null; } } });
+		this.fetchStub.resolves({ ok: true, status: 200 });
+
+		this.oControl._onDeletePress().then(function() {
+			assert.equal(this.fetchStub.callCount, 2, "fetch called 2 times: CSRF + PATCH");
+
+			const csrfCall = this.fetchStub.getCall(0);
+			assert.equal(csrfCall.args[1].method, "GET", "first call is CSRF GET");
+			assert.equal(csrfCall.args[1].headers["x-csrf-token"], "Fetch", "CSRF header is 'Fetch'");
+
+			const patchCall = this.fetchStub.getCall(1);
+			assert.equal(patchCall.args[0], "/odata/v4/items/Items(1)", "PATCH targets entity URL");
+			assert.equal(patchCall.args[1].method, "PATCH", "second call is PATCH");
+			assert.equal(patchCall.args[1].headers["x-csrf-token"], "del-token", "PATCH sends CSRF token");
+
+			const patchBody = JSON.parse(patchCall.args[1].body);
+			assert.strictEqual(patchBody.content, null, "PATCH body sets contentProperty to null");
+			done();
+		}.bind(this)).catch(function(err) {
+			assert.ok(false, "Promise rejected: " + (err && err.message || err));
+			done();
+		});
+	});
+
+	QUnit.test("delete calls context.refresh() after successful PATCH", function(assert) {
+		const done = assert.async();
+
+		const refreshSpy = sinon.spy();
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			refresh: refreshSpy
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(name) { return name === "x-csrf-token" ? "tok" : null; } } });
+		this.fetchStub.resolves({ ok: true, status: 200 });
+
+		this.oControl._onDeletePress().then(function() {
+			assert.ok(refreshSpy.calledOnce, "context.refresh() called once after delete");
+			done();
+		}.bind(this)).catch(function(err) {
+			assert.ok(false, "Promise rejected: " + (err && err.message || err));
+			done();
+		});
+	});
+
+	QUnit.test("delete hides link and delete button after successful PATCH", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			refresh: function() {}
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(name) { return name === "x-csrf-token" ? "tok" : null; } } });
+		this.fetchStub.resolves({ ok: true, status: 200 });
+
+		this.oControl._onDeletePress().then(function() {
+			const oLink = this.oControl.getAggregation("_filenameLink");
+			const oButton = this.oControl.getAggregation("_deleteButton");
+			assert.strictEqual(oLink.getVisible(), false, "filename link is hidden after delete");
+			assert.strictEqual(oButton.getVisible(), false, "delete button is hidden after delete");
+			done();
+		}.bind(this)).catch(function(err) {
+			assert.ok(false, "Promise rejected: " + (err && err.message || err));
+			done();
+		});
 	});
 
 });
