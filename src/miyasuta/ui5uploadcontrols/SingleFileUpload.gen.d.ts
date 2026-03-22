@@ -35,6 +35,12 @@ declare module "./SingleFileUpload" {
          * Width of the control wrapper.
          */
         width?: CSSSize | PropertyBindingInfo | `{${string}}`;
+
+        /**
+         * Controls whether upload and delete are enabled.
+        When false, both FileUploader and delete button are disabled regardless of draft state.
+         */
+        enabled?: boolean | PropertyBindingInfo | `{${string}}`;
     }
 
     export default interface SingleFileUpload {
@@ -102,5 +108,19 @@ declare module "./SingleFileUpload" {
          * Width of the control wrapper.
          */
         setWidth(width: CSSSize): this;
+
+        // property: enabled
+
+        /**
+         * Controls whether upload and delete are enabled.
+        When false, both FileUploader and delete button are disabled regardless of draft state.
+         */
+        getEnabled(): boolean;
+
+        /**
+         * Controls whether upload and delete are enabled.
+        When false, both FileUploader and delete button are disabled regardless of draft state.
+         */
+        setEnabled(enabled: boolean): this;
     }
 }

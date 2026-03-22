@@ -74,6 +74,15 @@ export default class SingleFileUpload extends Control {
 				type: "sap.ui.core.CSSSize",
 				group: "Appearance",
 				defaultValue: "auto"
+			},
+			/**
+			 * Controls whether upload and delete are enabled.
+			 * When false, both FileUploader and delete button are disabled regardless of draft state.
+			 */
+			enabled: {
+				type: "boolean",
+				group: "Behavior",
+				defaultValue: true
 			}
 		},
 		aggregations: {
@@ -105,32 +114,51 @@ export default class SingleFileUpload extends Control {
 		this.setAggregation("_deleteButton", oDeleteButton);
 	}
 
+	setEnabled(value: boolean): this {
+		this.setProperty("enabled", value, true); // suppress re-render: no risk of losing link visibility
+		const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
+		const deleteButton = this.getAggregation("_deleteButton") as Button;
+		const canOperate = this._computeCanOperate(value);
+		fileUploader.setEnabled(canOperate);
+		if (deleteButton.getVisible()) {
+			deleteButton.setEnabled(canOperate);
+		}
+		return this;
+	}
+
+	private _computeCanOperate(enabled?: boolean): boolean {
+		const isEnabled = enabled ?? this.getEnabled();
+		if (!isEnabled) return false;
+		const context = this.getBindingContext(this.getModelName() || undefined);
+		const obj = context?.getObject() as Record<string, unknown> | undefined;
+		return !(obj?.IsActiveEntity === true && this.getDraftOnly());
+	}
+
 	override onBeforeRendering(): void {
 		const modelName = this.getModelName() || undefined;
 		const context = this.getBindingContext(modelName);
 		const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
 		const filenameLink = this.getAggregation("_filenameLink") as Link;
+		const deleteButton = this.getAggregation("_deleteButton") as Button;
 
 		if (!context) {
-			fileUploader.setEnabled(true);
+			fileUploader.setWidth(this.getWidth());
+			fileUploader.setEnabled(this._computeCanOperate());
 			filenameLink.setVisible(false);
 			return;
 		}
 
 		const obj = context.getObject() as Record<string, unknown>;
-		const isActive = obj?.IsActiveEntity;
 
-		// Draft detection: disable upload in active (display) mode when draftOnly=true
-		if (isActive === true && this.getDraftOnly()) {
-			fileUploader.setEnabled(false);
-		} else {
-			fileUploader.setEnabled(true);
-		}
+		// Apply width to the FileUploader (outer container has no fixed width)
+		fileUploader.setWidth(this.getWidth());
+
+		// Apply enabled state (draft detection + enabled master switch)
+		fileUploader.setEnabled(this._computeCanOperate());
 
 		// Filename display: show download link and delete button when a file name exists
 		const fileNameProp = this.getFileNameProperty();
 		const fileName = fileNameProp ? (obj?.[fileNameProp] as string) : undefined;
-		const deleteButton = this.getAggregation("_deleteButton") as Button;
 		if (fileName) {
 			const model = context.getModel() as unknown as { getServiceUrl(): string };
 			const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
@@ -202,7 +230,7 @@ export default class SingleFileUpload extends Control {
 
 			const deleteButton = this.getAggregation("_deleteButton") as Button;
 			deleteButton.setVisible(true);
-			deleteButton.setEnabled(true);
+			deleteButton.setEnabled(this.getEnabled());
 
 			const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
 			fileUploader.clear();
