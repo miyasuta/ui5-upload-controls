@@ -257,13 +257,14 @@ export default class SingleFileUpload extends Control {
 			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
 		}
 
-		// Step 2: derive draft entity URL from @odata.id in the response
-		const draftEntity = await draftEditResponse.json() as { "@odata.id": string };
-		const draftId = draftEntity["@odata.id"];
-		const draftUrl = `${serviceUrl}/${draftId}`;
+		// Step 2: derive draft entity URL by switching IsActiveEntity flag
+		// Note: CAP's draftEdit response does not include @odata.id, so we derive
+		// the draft path by replacing IsActiveEntity=true with IsActiveEntity=false.
+		const draftEntityPath = entityPath.replace(/IsActiveEntity=true/i, "IsActiveEntity=false");
+		const draftUrl = `${serviceUrl}${draftEntityPath}`;
 
 		// Step 3: upload to the draft entity
-		await this._uploadDirect(serviceUrl, `/${draftId}`, file, csrfToken);
+		await this._uploadDirect(serviceUrl, draftEntityPath, file, csrfToken);
 
 		// Step 4: activate the draft
 		const activateUrl = `${draftUrl}/draftActivate`;
@@ -290,21 +291,17 @@ export default class SingleFileUpload extends Control {
 		const model = context.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const entityPath = context.getPath();
-		const entityUrl = serviceUrl + entityPath;
 
 		try {
 			const csrfToken = await this._fetchCsrfToken(serviceUrl);
 
-			const patchResponse = await fetch(entityUrl, {
-				method: "PATCH",
-				headers: {
-					"Content-Type": "application/json",
-					"x-csrf-token": csrfToken
-				},
-				body: JSON.stringify({ [this.getContentProperty()]: null, [this.getFileNameProperty()]: null })
-			});
-			if (!patchResponse.ok) {
-				throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
+			const obj = context.getObject() as Record<string, unknown>;
+			const isActive = obj?.IsActiveEntity;
+
+			if (isActive === true && !this.getDraftOnly()) {
+				await this._deleteWithDraftLifecycle(serviceUrl, entityPath, csrfToken);
+			} else {
+				await this._deleteDirect(serviceUrl, entityPath, csrfToken);
 			}
 
 			const filenameLink = this.getAggregation("_filenameLink") as Link;
@@ -315,6 +312,57 @@ export default class SingleFileUpload extends Control {
 			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
 			console.error("SingleFileUpload: delete failed", error);
+		}
+	}
+
+	private async _deleteDirect(serviceUrl: string, entityPath: string, csrfToken: string): Promise<void> {
+		const entityUrl = serviceUrl + entityPath;
+		const patchResponse = await fetch(entityUrl, {
+			method: "PATCH",
+			headers: {
+				"Content-Type": "application/json",
+				"x-csrf-token": csrfToken
+			},
+			body: JSON.stringify({ [this.getContentProperty()]: null, [this.getFileNameProperty()]: null })
+		});
+		if (!patchResponse.ok) {
+			throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
+		}
+	}
+
+	private async _deleteWithDraftLifecycle(serviceUrl: string, entityPath: string, csrfToken: string): Promise<void> {
+		// Step 1: create a draft
+		const draftEditUrl = `${serviceUrl}${entityPath}/draftEdit`;
+		const draftEditResponse = await fetch(draftEditUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-csrf-token": csrfToken
+			},
+			body: JSON.stringify({ PreserveChanges: true })
+		});
+		if (!draftEditResponse.ok) {
+			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
+		}
+
+		// Step 2: derive draft entity path
+		const draftEntityPath = entityPath.replace(/IsActiveEntity=true/i, "IsActiveEntity=false");
+		const draftUrl = `${serviceUrl}${draftEntityPath}`;
+
+		// Step 3: clear file on the draft
+		await this._deleteDirect(serviceUrl, draftEntityPath, csrfToken);
+
+		// Step 4: activate the draft
+		const activateResponse = await fetch(`${draftUrl}/draftActivate`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"x-csrf-token": csrfToken
+			},
+			body: JSON.stringify({})
+		});
+		if (!activateResponse.ok) {
+			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
 		}
 	}
 
