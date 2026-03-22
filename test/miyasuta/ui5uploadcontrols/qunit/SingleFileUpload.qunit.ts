@@ -406,6 +406,13 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.module("SingleFileUpload - FileUploader Width");
 
+	QUnit.test("filename link has wrapping disabled (single line)", function(assert) {
+		const oControl = new SingleFileUpload();
+		const oLink = oControl.getAggregation("_filenameLink");
+		assert.strictEqual(oLink.getWrapping(), false, "filenameLink wrapping is false");
+		oControl.destroy();
+	});
+
 	QUnit.test("internal FileUploader has width auto", function(assert) {
 		const oControl = new SingleFileUpload();
 		const oFileUploader = oControl.getAggregation("_fileUploader");

@@ -34,9 +34,15 @@ const SingleFileUploadRenderer = {
 		}
 
 		// Render filename download link (visible only when a file exists)
+		// flex-shrink: 0 prevents the link from being squeezed by the flex layout,
+		// ensuring the full filename is shown on one line.
 		const filenameLink = control.getAggregation("_filenameLink") as import("sap/m/Link").default;
 		if (filenameLink) {
+			rm.openStart("div");
+			rm.style("flex-shrink", "0");
+			rm.openEnd();
 			rm.renderControl(filenameLink);
+			rm.close("div");
 		}
 
 		// Render delete button (visible only when a file exists)
