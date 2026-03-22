@@ -136,6 +136,35 @@ sap.ui.define([
 		}.bind(this));
 	});
 
+	QUnit.test("clears FileUploader after successful upload", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Quotations(guid'123')"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; },
+			refresh: function() {}
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.onCall(0).resolves(new Response(null, {
+			status: 200,
+			headers: { "x-csrf-token": "test-token" }
+		}));
+		this.fetchStub.resolves(new Response(null, { status: 200 }));
+
+		const oFileUploader = this.oControl.getAggregation("_fileUploader");
+		const clearSpy = sinon.spy(oFileUploader, "clear");
+
+		const mockFile = new File(["hello"], "myfile.txt", { type: "text/plain" });
+		const mockEvent = { getParameter: () => [mockFile] };
+
+		this.oControl._onFileChange(mockEvent).then(function() {
+			assert.ok(clearSpy.calledOnce, "FileUploader.clear() called once after upload");
+			done();
+		}.bind(this));
+	});
+
 	QUnit.test("shows delete button after successful upload", function(assert) {
 		const done = assert.async();
 
@@ -557,6 +586,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		assert.ok(oButton, "_deleteButton aggregation exists");
 	});
 
+	QUnit.test("delete button has Transparent type (no border)", function(assert) {
+		const oButton = this.oControl.getAggregation("_deleteButton");
+		assert.strictEqual(oButton.getType(), "Transparent", "delete button type is Transparent");
+	});
+
 	QUnit.test("delete button is hidden when no file exists", function(assert) {
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
@@ -637,6 +671,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 			const patchBody = JSON.parse(patchCall.args[1].body);
 			assert.strictEqual(patchBody.content, null, "PATCH body sets contentProperty to null");
+			assert.strictEqual(patchBody.fileName, null, "PATCH body sets fileNameProperty to null");
 			done();
 		}.bind(this)).catch(function(err) {
 			assert.ok(false, "Promise rejected: " + (err && err.message || err));

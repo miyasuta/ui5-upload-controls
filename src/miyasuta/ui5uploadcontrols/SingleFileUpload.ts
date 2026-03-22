@@ -98,6 +98,7 @@ export default class SingleFileUpload extends Control {
 
 		const oDeleteButton = new Button({
 			icon: "sap-icon://decline",
+			type: "Transparent",
 			visible: false,
 			press: this._onDeletePress.bind(this)
 		});
@@ -203,6 +204,9 @@ export default class SingleFileUpload extends Control {
 			deleteButton.setVisible(true);
 			deleteButton.setEnabled(true);
 
+			const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
+			fileUploader.clear();
+
 			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
 			console.error("SingleFileUpload: upload failed", error);
@@ -297,7 +301,7 @@ export default class SingleFileUpload extends Control {
 					"Content-Type": "application/json",
 					"x-csrf-token": csrfToken
 				},
-				body: JSON.stringify({ [this.getContentProperty()]: null })
+				body: JSON.stringify({ [this.getContentProperty()]: null, [this.getFileNameProperty()]: null })
 			});
 			if (!patchResponse.ok) {
 				throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
