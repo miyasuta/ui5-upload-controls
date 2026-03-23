@@ -28,6 +28,11 @@ sap.ui.define(function() {
 			SingleFileUpload: {
 				title: "QUnit Test for SingleFileUpload",
 				_alternativeTitle: "QUnit tests: miyasuta.ui5uploadcontrols.SingleFileUpload"
+			},
+			// test file for the MultiFileUpload control
+			MultiFileUpload: {
+				title: "QUnit Test for MultiFileUpload",
+				_alternativeTitle: "QUnit tests: miyasuta.ui5uploadcontrols.MultiFileUpload"
 			}
 		}
 	};

@@ -21,7 +21,8 @@ Lib.init({
 	types: [],
 	interfaces: [],
 	controls: [
-		"miyasuta.ui5uploadcontrols.SingleFileUpload"
+		"miyasuta.ui5uploadcontrols.SingleFileUpload",
+		"miyasuta.ui5uploadcontrols.MultiFileUpload"
 	],
 	elements: [],
 	noLibraryCSS: false, // if no CSS is provided, you can disable the library.css load here
