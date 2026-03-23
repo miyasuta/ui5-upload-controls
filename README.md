@@ -55,6 +55,18 @@ The service URL is derived automatically from the binding context's OData V4 mod
 3. Render as <a href="{url}" download>
 ```
 
+> **Prerequisite — correct download filename**: The browser determines the save-as filename from the `Content-Disposition: attachment; filename="..."` response header. On a CAP backend, add the `@Core.ContentDisposition.Filename` annotation on the `LargeBinary` property so that CAP includes the stored filename in the header:
+>
+> ```cds
+> entity YourEntity : managed {
+>   content  : LargeBinary @Core.MediaType: 'application/octet-stream'
+>                           @Core.ContentDisposition.Filename: fileName;
+>   fileName : String;
+> }
+> ```
+>
+> Without this annotation the downloaded file may be saved with a generic name (e.g. `content` or `file.xlsx`).
+
 #### Draft Handling
 
 The control automatically detects whether the entity supports draft by checking for the `IsActiveEntity` property on the binding context.
