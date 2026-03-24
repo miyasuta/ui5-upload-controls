@@ -411,4 +411,183 @@ sap.ui.define([
 			done();
 		}.bind(this));
 	});
+
+	// ─── _computeCanOperate ───────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - _computeCanOperate");
+
+	QUnit.test("returns true when IsActiveEntity=false (draft mode)", function(assert) {
+		const oControl = new MultiFileUpload();
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: false }; }
+		});
+		assert.strictEqual(oControl._computeCanOperate(), true, "can operate in draft mode");
+		oControl.destroy();
+	});
+
+	QUnit.test("returns true when IsActiveEntity is absent (non-draft entity)", function(assert) {
+		const oControl = new MultiFileUpload();
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return {}; }
+		});
+		assert.strictEqual(oControl._computeCanOperate(), true, "can operate for non-draft entity");
+		oControl.destroy();
+	});
+
+	QUnit.test("returns true when draftOnly=false even if IsActiveEntity=true", function(assert) {
+		const oControl = new MultiFileUpload({ draftOnly: false });
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: true }; }
+		});
+		assert.strictEqual(oControl._computeCanOperate(), true, "can operate when draftOnly=false");
+		oControl.destroy();
+	});
+
+	QUnit.test("returns false when enabled=false regardless of draft state", function(assert) {
+		const oControl = new MultiFileUpload({ enabled: false });
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: false }; }
+		});
+		assert.strictEqual(oControl._computeCanOperate(), false, "cannot operate when enabled=false");
+		oControl.destroy();
+	});
+
+	// ─── setEnabled ───────────────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - setEnabled");
+
+	QUnit.test("setEnabled(false) disables delete buttons in all existing rows", function(assert) {
+		const oControl = new MultiFileUpload();
+		const mockDeleteButton = { setEnabled: sinon.spy() };
+		const mockItem = { getCells: function() { return [null, null, null, mockDeleteButton]; } };
+		const mockTable = { getItems: function() { return [mockItem]; } };
+		sinon.stub(oControl, "getAggregation").returns(mockTable);
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: false }; }
+		});
+
+		oControl.setEnabled(false);
+
+		assert.ok(mockDeleteButton.setEnabled.calledOnce, "setEnabled called on delete button");
+		assert.ok(mockDeleteButton.setEnabled.calledWith(false), "delete button is disabled");
+		oControl.destroy();
+	});
+
+	QUnit.test("setEnabled(true) enables delete buttons when in draft mode", function(assert) {
+		const oControl = new MultiFileUpload({ enabled: false });
+		const mockDeleteButton = { setEnabled: sinon.spy() };
+		const mockItem = { getCells: function() { return [null, null, null, mockDeleteButton]; } };
+		const mockTable = { getItems: function() { return [mockItem]; } };
+		sinon.stub(oControl, "getAggregation").returns(mockTable);
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: false }; }
+		});
+
+		oControl.setEnabled(true);
+
+		assert.ok(mockDeleteButton.setEnabled.calledOnce, "setEnabled called on delete button");
+		assert.ok(mockDeleteButton.setEnabled.calledWith(true), "delete button is enabled");
+		oControl.destroy();
+	});
+
+	// ─── Table Binding ────────────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - Table Binding");
+
+	QUnit.test("does nothing when no binding context in onBeforeRendering", function(assert) {
+		const oControl = new MultiFileUpload();
+		const bindSpy = sinon.stub(oControl, "_bindTableItems");
+
+		oControl.onBeforeRendering();
+
+		assert.ok(bindSpy.notCalled, "_bindTableItems not called when context is absent");
+		oControl.destroy();
+	});
+
+	QUnit.test("_bindTableItems called when context path changes", function(assert) {
+		const oControl = new MultiFileUpload();
+		const bindSpy = sinon.stub(oControl, "_bindTableItems");
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; }
+		};
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+
+		oControl.onBeforeRendering();
+
+		assert.ok(bindSpy.calledOnce, "_bindTableItems called when context path is new");
+		assert.ok(bindSpy.calledWith(mockContext), "_bindTableItems called with the binding context");
+		oControl.destroy();
+	});
+
+	QUnit.test("_bindTableItems not called again when context path is unchanged", function(assert) {
+		const oControl = new MultiFileUpload();
+		const bindSpy = sinon.stub(oControl, "_bindTableItems");
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; }
+		};
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+
+		oControl.onBeforeRendering(); // first call — path recorded
+		oControl.onBeforeRendering(); // second call — same path, no rebind
+
+		assert.equal(bindSpy.callCount, 1, "_bindTableItems called only once for same path");
+		oControl.destroy();
+	});
+
+	// ─── Error Handling ───────────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - Error Handling", {
+		beforeEach: function() {
+			this.oControl = new MultiFileUpload({ attachmentsSegment: "attachments" });
+			this.fetchStub = sinon.stub(window, "fetch");
+		},
+		afterEach: function() {
+			this.fetchStub.restore();
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("upload failure is caught and promise resolves without throwing", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; }
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.rejects(new Error("Network error"));
+
+		const mockFile = new File(["data"], "file.txt", { type: "text/plain" });
+
+		this.oControl._handleUpload(mockFile).then(function() {
+			assert.ok(true, "_handleUpload resolved without throwing when fetch fails");
+			done();
+		});
+	});
+
+	QUnit.test("delete failure is caught and promise resolves without throwing", function(assert) {
+		const done = assert.async();
+
+		const mockParentContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
+			getObject: function() { return { IsActiveEntity: false }; }
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockParentContext);
+
+		const mockRowContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)/attachments(ID=att-001)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; }
+		};
+		const mockButton = { getBindingContext: function() { return mockRowContext; } };
+		const mockEvent = { getSource: function() { return mockButton; } };
+
+		this.fetchStub.rejects(new Error("Network error"));
+
+		this.oControl._onRowDeletePress(mockEvent).then(function() {
+			assert.ok(true, "_onRowDeletePress resolved without throwing when fetch fails");
+			done();
+		});
+	});
 });
