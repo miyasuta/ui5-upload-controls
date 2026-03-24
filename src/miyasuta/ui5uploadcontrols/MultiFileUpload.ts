@@ -11,6 +11,7 @@ import Text from "sap/m/Text";
 import Link from "sap/m/Link";
 import Button from "sap/m/Button";
 import Toolbar from "sap/m/Toolbar";
+import ToolbarSpacer from "sap/m/ToolbarSpacer";
 import UploadSetwithTable from "sap/m/plugins/UploadSetwithTable";
 import ActionsPlaceholder from "sap/m/upload/ActionsPlaceholder";
 import { UploadSetwithTableActionPlaceHolder } from "sap/m/library";
@@ -81,17 +82,19 @@ export default class MultiFileUpload extends Control {
 
 	override init(): void {
 		const sPluginId = this.getId() + "--uploadPlugin";
+		const sPlaceholderId = this.getId() + "--uploadButton";
 
 		this._uploadPlugin = new UploadSetwithTable(sPluginId, {
-			beforeUploadStarts: this._onBeforeUploadStarts.bind(this)
+			beforeUploadStarts: this._onBeforeUploadStarts.bind(this),
+			actions: [sPlaceholderId]
 		});
 
-		const oPlaceholder = new ActionsPlaceholder({
+		const oPlaceholder = new ActionsPlaceholder(sPlaceholderId, {
 			placeholderFor: UploadSetwithTableActionPlaceHolder.UploadButtonPlaceholder
 		});
 
 		const oTable = new Table({
-			headerToolbar: new Toolbar({ content: [oPlaceholder] }),
+			headerToolbar: new Toolbar({ content: [new ToolbarSpacer(), oPlaceholder] }),
 			columns: [
 				new Column({ header: new Text({ text: "File Name" }) }),
 				new Column({ header: new Text({ text: "Created At" }) }),
@@ -124,6 +127,7 @@ export default class MultiFileUpload extends Control {
 		// Update delete buttons in all bound rows
 		const table = this.getAggregation("_table") as Table;
 		const canOperate = this._computeCanOperate(value);
+		this._uploadPlugin.setUploadEnabled(canOperate);
 		table.getItems().forEach((item) => {
 			const cells = (item as ColumnListItem).getCells();
 			const deleteButton = cells[3] as Button;
