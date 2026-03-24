@@ -151,7 +151,6 @@ export default class MultiFileUpload extends Control {
 		table.setBindingContext(parentContext);
 		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
-		const that = this;
 		const canOperate = this._computeCanOperate();
 
 		table.bindItems({
@@ -163,12 +162,12 @@ export default class MultiFileUpload extends Control {
 						target: "_blank",
 						href: {
 							parts: [{ path: "ID" }],
-							formatter: function (id: string): string {
+							formatter: (id: string): string => {
 								if (!id) return "";
-								const pContext = that.getBindingContext();
+								const pContext = this.getBindingContext();
 								if (!pContext) return "";
 								const parentPath = (pContext as ODataV4Context).getPath();
-								return `${serviceUrl}${parentPath}/${that.getAttachmentsSegment()}(ID=${id})/content`;
+								return `${serviceUrl}${parentPath}/${this.getAttachmentsSegment()}(ID=${id})/content`;
 							}
 						}
 					}),
@@ -187,7 +186,7 @@ export default class MultiFileUpload extends Control {
 						icon: "sap-icon://decline",
 						type: "Transparent",
 						enabled: canOperate,
-						press: this._onRowDeletePress.bind(this)
+						press: (event: Event) => { void this._onRowDeletePress(event); }
 					})
 				]
 			}),
@@ -307,6 +306,7 @@ export default class MultiFileUpload extends Control {
 	private async _onRowDeletePress(event: Event): Promise<void> {
 		if (!this._computeCanOperate()) return;
 
+		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 		const button = event.getSource() as Button;
 		const rowContext = button.getBindingContext() as ODataV4Context;
 		if (!rowContext) return;
