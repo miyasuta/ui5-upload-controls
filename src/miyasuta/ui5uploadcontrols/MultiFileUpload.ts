@@ -102,6 +102,21 @@ export default class MultiFileUpload extends Control {
 
 		oTable.addDependent(this._uploadPlugin);
 		this.setAggregation("_table", oTable);
+
+		// React to binding context propagated from parent containers (e.g. Fiori Elements Object Page).
+		// setBindingContext is not called directly by FE; context arrives via propagateProperties → updateBindingContext,
+		// which fires the modelContextChange event.
+		this.attachModelContextChange(this._onModelContextChange.bind(this));
+	}
+
+	private _onModelContextChange(): void {
+		const context = this.getBindingContext();
+		if (!context) return;
+		const currentPath = (context as ODataV4Context).getPath();
+		if (this._lastBoundPath !== currentPath) {
+			this._bindTableItems(context as ODataV4Context);
+			this._lastBoundPath = currentPath;
+		}
 	}
 
 	setEnabled(value: boolean): this {
@@ -127,19 +142,9 @@ export default class MultiFileUpload extends Control {
 		return !(obj?.IsActiveEntity === true && this.getDraftOnly());
 	}
 
-	override onBeforeRendering(): void {
-		const context = this.getBindingContext();
-		if (!context) return;
-
-		const currentPath = (context as ODataV4Context).getPath();
-		if (this._lastBoundPath !== currentPath) {
-			this._bindTableItems(context as ODataV4Context);
-			this._lastBoundPath = currentPath;
-		}
-	}
-
 	private _bindTableItems(parentContext: ODataV4Context): void {
 		const table = this.getAggregation("_table") as Table;
+		table.setBindingContext(parentContext);
 		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const that = this;
@@ -219,7 +224,7 @@ export default class MultiFileUpload extends Control {
 			}
 
 			console.info("MultiFileUpload: upload completed", file.name);
-			((this.getAggregation("_table") as Table).getBinding("items") as { refresh(): void }).refresh();
+			this._bindTableItems(context as ODataV4Context);
 		} catch (error) {
 			console.error("MultiFileUpload: upload failed", error);
 		}
@@ -321,7 +326,7 @@ export default class MultiFileUpload extends Control {
 			}
 
 			console.info("MultiFileUpload: delete completed");
-			((this.getAggregation("_table") as Table).getBinding("items") as { refresh(): void }).refresh();
+			this._bindTableItems(this.getBindingContext() as ODataV4Context);
 		} catch (error) {
 			console.error("MultiFileUpload: delete failed", error);
 		}
