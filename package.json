@@ -1,31 +1,54 @@
 {
-  "name": "ui5uploadcontrols",
-  "version": "1.0.0",
+  "name": "ui5-upload-controls",
+  "version": "1.0.1",
+  "description": "Reusable UI5 control library for file upload/download, designed to work with SAP CAP (LargeBinary and @cap-js/attachments).",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miyasuta/ui5-upload-controls.git"
+  },
+  "keywords": [
+    "ui5",
+    "sapui5",
+    "fiori",
+    "upload",
+    "attachment",
+    "cap"
+  ],
+  "files": [
+    "dist/resources",
+    "dist/index.d.ts",
+    "ui5.yaml"
+  ],
+  "types": "dist/index.d.ts",
   "devDependencies": {
+    "@sap-ux/eslint-plugin-fiori-tools": "^9.0.0",
+    "@sap/ux-ui5-tooling": "1",
+    "@sapui5/types": "1.136.0",
     "@ui5/cli": "^4.0.33",
+    "@ui5/linter": "^1.20.16",
+    "@ui5/ts-interface-generator": "^0.8.1",
+    "eslint": "^9",
     "karma": "^6.3.17",
     "karma-chrome-launcher": "^3.1.1",
     "karma-cli": "^2.0.0",
     "karma-ui5": "^3.0.3",
-    "@sap/ux-ui5-tooling": "1",
-    "@sapui5/types": "1.136.0",
-    "eslint": "^9",
-    "@ui5/ts-interface-generator": "^0.8.1",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.3",
-    "ui5-tooling-transpile": "^3.10.0",
-    "@sap-ux/eslint-plugin-fiori-tools": "^9.0.0"
+    "ui5-tooling-transpile": "^3.10.0"
   },
   "scripts": {
     "build": "run-p -l build-app build-interface",
+    "prepublishOnly": "npm run build",
     "deploy": "fiori verify",
     "deploy-config": "fiori add deploy-config",
-    "start": "fiori run --open \"test-resources/miyasuta/ui5uploadcontrols/SingleFileUpload.html\"",
-    "testsuite": "fiori run --open test-resources/miyasuta/ui5uploadcontrols/qunit/testsuite.qunit.html",
+    "start": "fiori run --config ui5.dev.yaml --open \"test-resources/miyasuta/ui5uploadcontrols/SingleFileUpload.html\"",
+    "testsuite": "fiori run --config ui5.dev.yaml --open test-resources/miyasuta/ui5uploadcontrols/qunit/testsuite.qunit.html",
     "test": "karma start --browsers=ChromeHeadless --singleRun=true",
-    "build-app": "ui5 build --config=ui5.yaml --clean-dest --dest dist",
+    "build-app": "ui5 build --config=ui5.dev.yaml --clean-dest --dest dist",
     "build-interface": "npx @ui5/ts-interface-generator",
     "ts-typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "ui5lint": "ui5lint --ignore-pattern \"dist/**\""
   }
 }

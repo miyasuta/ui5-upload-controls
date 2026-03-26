@@ -2,6 +2,11 @@ specVersion: '2.2'
 metadata:
   name: "miyasuta.ui5uploadcontrols"
 type: library
+resources:
+  configuration:
+    paths:
+      src: dist/resources
+      test: dist/test-resources
 framework:
   name: SAPUI5
   version: 1.136.0
@@ -11,27 +16,3 @@ framework:
     - name: sap.ui.unified
     - name: sap.ui.export
     - name: themelib_sap_fiori_3
-server:
-  customMiddleware:
-    - name: fiori-tools-appreload
-      afterMiddleware: compression
-      configuration:
-        path: src
-        port: 35729
-        delay: 300
-    - name: ui5-tooling-transpile-middleware
-      afterMiddleware: compression
-      configuration:
-        debug: true
-        transformModulesToUI5:
-          overridesToOverride: true
-        excludePatterns:
-          - /Component-preload.js
-builder:
-  customTasks:
-    - name: ui5-tooling-transpile-task
-      afterTask: replaceVersion
-      configuration:
-        debug: true
-        transformModulesToUI5:
-          overridesToOverride: true

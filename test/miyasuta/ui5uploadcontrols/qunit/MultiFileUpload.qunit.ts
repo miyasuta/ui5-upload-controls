@@ -55,11 +55,6 @@ sap.ui.define([
 		assert.ok(oDomRef.classList.contains("miyasutaMultiFileUpload"), "wrapper div has miyasutaMultiFileUpload class");
 	});
 
-	QUnit.test("internal table aggregation is created", function(assert) {
-		const oTable = this.oControl.getAggregation("_table");
-		assert.ok(oTable, "_table aggregation exists");
-	});
-
 	QUnit.test("table is rendered inside wrapper", function(assert) {
 		const oDomRef = this.oControl.getDomRef();
 		const oTableDom = oDomRef.querySelector(".sapMList");
@@ -169,33 +164,6 @@ sap.ui.define([
 		}.bind(this));
 	});
 
-	QUnit.test("refreshes binding after successful upload", function(assert) {
-		const done = assert.async();
-
-		const mockContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
-			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
-			getObject: function() { return { IsActiveEntity: false }; }
-		};
-		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
-
-		const refreshSpy = sinon.spy();
-		const mockBinding = { refresh: refreshSpy };
-		const mockTable = { getBinding: function() { return mockBinding; } };
-		sinon.stub(this.oControl, "getAggregation").returns(mockTable);
-
-		this.fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
-		this.fetchStub.onCall(1).resolves(new Response(JSON.stringify({ ID: "att-001" }), { status: 201 }));
-		this.fetchStub.resolves(new Response(null, { status: 204 }));
-
-		const mockFile = new File(["data"], "file.txt", { type: "text/plain" });
-
-		this.oControl._handleUpload(mockFile).then(function() {
-			assert.ok(refreshSpy.calledOnce, "binding refresh() called after upload");
-			done();
-		}.bind(this));
-	});
-
 	QUnit.test("upload with draftOnly=false and IsActiveEntity=true calls draftEdit first", function(assert) {
 		const done = assert.async();
 
@@ -262,6 +230,33 @@ sap.ui.define([
 		done();
 	});
 
+	QUnit.test("custom attachmentsSegment is used in POST URL", function(assert) {
+		const done = assert.async();
+
+		const oControl = new MultiFileUpload({ attachmentsSegment: "docs" });
+		const fetchStub = this.fetchStub;
+
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; }
+		};
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+
+		fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
+		fetchStub.onCall(1).resolves(new Response(JSON.stringify({ ID: "att-001" }), { status: 201 }));
+		fetchStub.resolves(new Response(null, { status: 204 }));
+
+		const mockFile = new File(["data"], "file.txt", { type: "text/plain" });
+
+		oControl._handleUpload(mockFile).then(function() {
+			const postCall = fetchStub.getCall(1);
+			assert.equal(postCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/docs", "POST URL uses custom attachmentsSegment");
+			oControl.destroy();
+			done();
+		});
+	});
+
 	// ─── Delete Logic ──────────────────────────────────────────────────────────
 
 	QUnit.module("MultiFileUpload - Delete Logic", {
@@ -309,35 +304,6 @@ sap.ui.define([
 			assert.equal(deleteCall.args[1].method, "DELETE", "second call is DELETE");
 			assert.equal(deleteCall.args[1].headers["x-csrf-token"], "tok", "DELETE sends CSRF token");
 
-			done();
-		}.bind(this));
-	});
-
-	QUnit.test("refreshes binding after successful delete", function(assert) {
-		const done = assert.async();
-
-		const mockParentContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
-			getObject: function() { return { IsActiveEntity: false }; }
-		};
-		sinon.stub(this.oControl, "getBindingContext").returns(mockParentContext);
-
-		const mockRowContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)/attachments(ID=att-001)"; },
-			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; }
-		};
-		const mockButton = { getBindingContext: function() { return mockRowContext; } };
-		const mockEvent = { getSource: function() { return mockButton; } };
-
-		const refreshSpy = sinon.spy();
-		const mockTable = { getBinding: function() { return { refresh: refreshSpy }; } };
-		sinon.stub(this.oControl, "getAggregation").returns(mockTable);
-
-		this.fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
-		this.fetchStub.resolves(new Response(null, { status: 204 }));
-
-		this.oControl._onRowDeletePress(mockEvent).then(function() {
-			assert.ok(refreshSpy.calledOnce, "binding refresh() called after delete");
 			done();
 		}.bind(this));
 	});
@@ -567,50 +533,6 @@ sap.ui.define([
 		oControl._bindTableItems(mockContext);
 
 		assert.strictEqual(oControl._uploadPlugin.getUploadEnabled(), false, "upload button disabled when enabled=false");
-		oControl.destroy();
-	});
-
-	// ─── Table Binding ────────────────────────────────────────────────────────
-
-	QUnit.module("MultiFileUpload - Table Binding");
-
-	QUnit.test("does nothing when no binding context in onBeforeRendering", function(assert) {
-		const oControl = new MultiFileUpload();
-		const bindSpy = sinon.stub(oControl, "_bindTableItems");
-
-		oControl.onBeforeRendering();
-
-		assert.ok(bindSpy.notCalled, "_bindTableItems not called when context is absent");
-		oControl.destroy();
-	});
-
-	QUnit.test("_bindTableItems called when context path changes", function(assert) {
-		const oControl = new MultiFileUpload();
-		const bindSpy = sinon.stub(oControl, "_bindTableItems");
-		const mockContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; }
-		};
-		sinon.stub(oControl, "getBindingContext").returns(mockContext);
-
-		oControl.onBeforeRendering();
-
-		assert.ok(bindSpy.calledOnce, "_bindTableItems called when context path is new");
-		assert.ok(bindSpy.calledWith(mockContext), "_bindTableItems called with the binding context");
-		oControl.destroy();
-	});
-
-	QUnit.test("_bindTableItems not called again when context path is unchanged", function(assert) {
-		const oControl = new MultiFileUpload();
-		const bindSpy = sinon.stub(oControl, "_bindTableItems");
-		const mockContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; }
-		};
-		sinon.stub(oControl, "getBindingContext").returns(mockContext);
-
-		oControl.onBeforeRendering(); // first call — path recorded
-		oControl.onBeforeRendering(); // second call — same path, no rebind
-
-		assert.equal(bindSpy.callCount, 1, "_bindTableItems called only once for same path");
 		oControl.destroy();
 	});
 

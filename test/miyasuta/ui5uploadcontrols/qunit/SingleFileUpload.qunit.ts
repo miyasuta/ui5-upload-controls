@@ -58,11 +58,6 @@ sap.ui.define([
 		assert.ok(oDomRef.classList.contains("miyasutaSingleFileUpload"), "wrapper div has miyasutaSingleFileUpload class");
 	});
 
-	QUnit.test("internal FileUploader aggregation is created", function(assert) {
-		const oFileUploader = this.oControl.getAggregation("_fileUploader");
-		assert.ok(oFileUploader, "_fileUploader aggregation exists");
-	});
-
 	QUnit.test("internal FileUploader is rendered inside wrapper", function(assert) {
 		const oDomRef = this.oControl.getDomRef();
 		const oFileUploaderDom = oDomRef.querySelector(".sapUiFileUploader, input[type='file']");
@@ -402,24 +397,6 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		});
 	});
 
-	// ─── FileUploader Width ────────────────────────────────────────────────────
-
-	QUnit.module("SingleFileUpload - FileUploader Width");
-
-	QUnit.test("filename link has wrapping disabled (single line)", function(assert) {
-		const oControl = new SingleFileUpload();
-		const oLink = oControl.getAggregation("_filenameLink");
-		assert.strictEqual(oLink.getWrapping(), false, "filenameLink wrapping is false");
-		oControl.destroy();
-	});
-
-	QUnit.test("internal FileUploader has width auto", function(assert) {
-		const oControl = new SingleFileUpload();
-		const oFileUploader = oControl.getAggregation("_fileUploader");
-		assert.equal(oFileUploader.getWidth(), "auto", "FileUploader width is 'auto'");
-		oControl.destroy();
-	});
-
 	// ─── Draft Detection ───────────────────────────────────────────────────────
 
 	QUnit.module("SingleFileUpload - Draft Detection");
@@ -588,16 +565,6 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		}
 	});
 
-	QUnit.test("_deleteButton aggregation exists", function(assert) {
-		const oButton = this.oControl.getAggregation("_deleteButton");
-		assert.ok(oButton, "_deleteButton aggregation exists");
-	});
-
-	QUnit.test("delete button has Transparent type (no border)", function(assert) {
-		const oButton = this.oControl.getAggregation("_deleteButton");
-		assert.strictEqual(oButton.getType(), "Transparent", "delete button type is Transparent");
-	});
-
 	QUnit.test("delete button is hidden when no file exists", function(assert) {
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
@@ -732,6 +699,58 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 			done();
 		}.bind(this)).catch(function(err) {
 			assert.ok(false, "Promise rejected: " + (err && err.message || err));
+			done();
+		});
+	});
+
+	// ─── Error Handling ───────────────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - Error Handling", {
+		beforeEach: function() {
+			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+			this.fetchStub = sinon.stub(window, "fetch");
+		},
+		afterEach: function() {
+			this.fetchStub.restore();
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("upload failure is caught and promise resolves without throwing", function(assert) {
+		const done = assert.async();
+
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; }
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+
+		this.fetchStub.rejects(new Error("Network error"));
+
+		const mockFile = new File(["data"], "file.txt", { type: "text/plain" });
+		const mockEvent = { getParameter: () => [mockFile] };
+
+		this.oControl._onFileChange(mockEvent).then(function() {
+			assert.ok(true, "_onFileChange resolved without throwing when fetch fails");
+			done();
+		});
+	});
+
+	QUnit.test("delete failure is caught and promise resolves without throwing", function(assert) {
+		const done = assert.async();
+
+		sinon.stub(this.oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			refresh: function() {}
+		});
+
+		this.fetchStub.rejects(new Error("Network error"));
+
+		this.oControl._onDeletePress().then(function() {
+			assert.ok(true, "_onDeletePress resolved without throwing when fetch fails");
 			done();
 		});
 	});

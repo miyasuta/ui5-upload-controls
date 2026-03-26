@@ -1,6 +1,6 @@
 # ui5-upload-controls
 
-Reusable UI5 control library for file upload/download, designed to work with SAP CAP (LargeBinary properties and `@cap-js/attachments`).
+Reusable UI5 control library for file upload and download, designed to work with SAP CAP backends.
 
 **Namespace:** `miyasuta.ui5uploadcontrols`
 
@@ -10,94 +10,58 @@ Reusable UI5 control library for file upload/download, designed to work with SAP
 
 ### SingleFileUpload
 
-A control for single-file upload and download. Wraps `sap.ui.unified.FileUploader` and handles OData PATCH + streaming PUT internally.
+A control for uploading and downloading a **single file** stored as a `LargeBinary` property on an OData entity.
 
-Designed for entities that store file content as a `LargeBinary` property.
+- Displays a file picker. After upload, shows a download link and a delete button.
+- Automatically derives the OData service URL and entity path from the binding context — no URL configuration needed.
+- Supports both draft-enabled and non-draft entities.
 
-The service URL is derived automatically from the binding context's OData V4 model, so no explicit URL configuration is required.
+### MultiFileUpload
 
-#### Properties
+A control for managing **multiple file attachments** on an OData entity, backed by the `@cap-js/attachments` composition pattern.
 
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `fileNameProperty` | string | `null` | Property name on the entity used to store the file name |
-| `contentProperty` | string | `"content"` | Property name of the LargeBinary field |
-| `modelName` | string | `null` | Name of the OData model as registered in manifest.json. Omit for the default (unnamed) model |
-| `draftOnly` | boolean | `true` | When `true`, upload is enabled only when the entity is in draft mode (`IsActiveEntity = false`). When `false`, upload is always enabled and draft is managed automatically (see Draft Handling) |
+- Displays a table of attached files (file name, created date, created by) with per-row delete buttons and an upload button in the toolbar.
+- Automatically binds to the attachments navigation property from the parent entity's binding context.
+- Supports both draft-enabled and non-draft entities.
 
-#### UI
+---
 
-```
-[ File name display / Download link       ]
-[ FileUploader (file picker + upload btn) ]
-```
+## Prerequisites
 
-- If a file already exists, the file name is shown as a download link.
-- The FileUploader is disabled when upload is not permitted (see Draft Handling).
+- SAPUI5 1.124+ (required for `sap.m.plugins.UploadSetwithTable`)
+- OData V4 service (CAP Node.js or compatible backend)
+- For `MultiFileUpload`: backend entity must expose an `attachments` composition compatible with `@cap-js/attachments`
 
-#### Upload Flow
+---
 
-```
-1. User selects a file via FileUploader
-2. Resolve binding context → get OData V4 model → derive service URL and entity path
-3. Apply draft handling logic (see below)
-4. PATCH {serviceUrl}{entityPath}
-        Body: { [fileNameProperty]: selectedFileName }
-5. PUT  {serviceUrl}{entityPath}/{contentProperty}
-        Body: file binary content
+## Installation
+
+```bash
+npm install ui5-upload-controls
 ```
 
-#### Download Flow
+---
 
-```
-1. Resolve binding context → derive service URL and entity path
-2. Construct URL: {serviceUrl}{entityPath}/{contentProperty}
-3. Render as <a href="{url}" download>
-```
+## Usage
 
-> **Prerequisite — correct download filename**: The browser determines the save-as filename from the `Content-Disposition: attachment; filename="..."` response header. On a CAP backend, add the `@Core.ContentDisposition.Filename` annotation on the `LargeBinary` property so that CAP includes the stored filename in the header:
->
-> ```cds
-> entity YourEntity : managed {
->   content  : LargeBinary @Core.MediaType: 'application/octet-stream'
->                           @Core.ContentDisposition.Filename: fileName;
->   fileName : String;
-> }
-> ```
->
-> Without this annotation the downloaded file may be saved with a generic name (e.g. `content` or `file.xlsx`).
+### SingleFileUpload
 
-#### Draft Handling
-
-The control automatically detects whether the entity supports draft by checking for the `IsActiveEntity` property on the binding context.
-
-| `IsActiveEntity` | `draftOnly` | Behavior |
-|---|---|---|
-| not present | any | Non-draft entity. Upload proceeds directly (PATCH → PUT). |
-| `false` | any | Entity is in draft (edit) mode. Upload proceeds directly (PATCH → PUT). |
-| `true` | `true` | Entity is active (display mode). **Upload is disabled.** The consuming app (e.g. Object Page) is expected to manage the Edit/Save/Cancel lifecycle. |
-| `true` | `false` | Entity is active. The control calls EditAction to create a draft, performs the upload (PATCH → PUT), then calls draftActivate to activate the draft automatically. |
-
-> **Note:** When embedding in a Fiori Elements Object Page, use the default `draftOnly="true"`.
-> The Object Page manages the Edit/Save/Cancel lifecycle, so the control must not create or activate drafts independently.
-
-#### Usage Example
+Place the control in an XML View or Fragment that is bound to an OData entity. The control reads the binding context from its parent automatically.
 
 ```xml
 <mvc:View
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:upload="miyasuta.ui5uploadcontrols">
 
-    <!-- Default model, draft-enabled entity embedded in Object Page -->
+    <!-- Draft-enabled entity embedded in Fiori Elements Object Page -->
     <upload:SingleFileUpload
         fileNameProperty="fileName"
-        contentProperty="content"
-        draftOnly="true" />
+        contentProperty="content" />
 
 </mvc:View>
 ```
 
-Named model, upload always allowed (auto draft management):
+With a named model and automatic draft management:
 
 ```xml
 <upload:SingleFileUpload
@@ -107,24 +71,105 @@ Named model, upload always allowed (auto draft management):
     draftOnly="false" />
 ```
 
+#### Properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `fileNameProperty` | `string` | `null` | Property name on the entity that stores the file name |
+| `contentProperty` | `string` | `"content"` | Property name of the `LargeBinary` field |
+| `modelName` | `string` | `null` | Name of the OData model as registered in `manifest.json`. Omit for the default (unnamed) model |
+| `draftOnly` | `boolean` | `true` | When `true`, upload is enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
+| `width` | `sap.ui.core.CSSSize` | `"auto"` | Width of the control |
+| `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
+
 ---
 
-## Prerequisites
+### MultiFileUpload
 
-- SAPUI5 1.124+
-- SAP CAP backend with OData V4 service
+Place the control in an XML View or Fragment bound to the parent entity. The control binds to the attachments navigation property automatically.
+
+```xml
+<mvc:View
+    xmlns:mvc="sap.ui.core.mvc"
+    xmlns:upload="miyasuta.ui5uploadcontrols">
+
+    <!-- Fiori Elements Object Page — attachments navigation property is "attachments" -->
+    <upload:MultiFileUpload />
+
+</mvc:View>
+```
+
+With a custom navigation property name:
+
+```xml
+<upload:MultiFileUpload
+    attachmentsSegment="files"
+    draftOnly="false" />
+```
+
+#### Properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `attachmentsSegment` | `string` | `"attachments"` | Navigation property segment name for the attachments composition |
+| `draftOnly` | `boolean` | `true` | When `true`, upload and delete are enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
+| `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
+
+---
+
+## Draft Handling
+
+Both controls automatically detect draft capability by checking for the `IsActiveEntity` property on the binding context.
+
+| `IsActiveEntity` | `draftOnly` | Behavior |
+|---|---|---|
+| not present | any | Non-draft entity — upload proceeds directly |
+| `false` | any | Entity is in draft (edit) mode — upload proceeds directly |
+| `true` | `true` | Entity is active (display mode) — **upload and delete are disabled** |
+| `true` | `false` | Entity is active — the control calls `draftEdit`, performs the operation, then calls `draftActivate` automatically |
+
+> **Fiori Elements Object Page**: use the default `draftOnly="true"`. The Object Page manages the Edit/Save/Cancel lifecycle; the control must not create or activate drafts independently.
+
+---
+
+## Backend Requirements
+
+### SingleFileUpload
+
+The entity must have a `LargeBinary` property for file content and a `String` property for the file name:
+
+```cds
+entity YourEntity : managed {
+  content  : LargeBinary @Core.MediaType: 'application/octet-stream'
+                          @Core.ContentDisposition.Filename: fileName;
+  fileName : String;
+}
+```
+
+> The `@Core.ContentDisposition.Filename` annotation is required for the browser to use the stored file name when downloading. Without it the downloaded file may be saved with a generic name (e.g. `content`).
+
+### MultiFileUpload
+
+The entity must expose an `attachments` composition that follows the `@cap-js/attachments` pattern:
+
+```cds
+using { Attachments } from '@cap-js/attachments';
+
+entity YourEntity : managed, cuid {
+  // ...your properties
+  attachments : Composition of many Attachments;
+}
+```
+
+---
 
 ## Integrating into a Consuming App
 
-### 1. Build the library
+### 1. Install the library
 
 ```bash
-cd ui5-upload-controls
-npm install
-npm run build
+npm install ui5-upload-controls
 ```
-
-The output is placed in `dist/`.
 
 ### 2. Declare the library dependency in `manifest.json`
 
@@ -138,75 +183,4 @@ The output is placed in `dist/`.
 }
 ```
 
-### 3. Configure `ui5.yaml` to serve the library
-
-When using `fiori run` (which proxies `/resources` to the UI5 CDN), the library must be served locally **before** the proxy intercepts the request.
-Add `fiori-tools-servestatic` pointing to the library's `dist` folder:
-
-```yaml
-- name: fiori-tools-servestatic
-  beforeMiddleware: fiori-tools-proxy
-  configuration:
-    paths:
-      - path: /resources/miyasuta/ui5uploadcontrols
-        src: <relative-path-to>/ui5-upload-controls/dist/resources/miyasuta/ui5uploadcontrols
-        fallthrough: false
-```
-
-> **Why not npm workspaces alone?**
-> `fiori-tools-proxy` intercepts all `/resources` requests and forwards them to the UI5 CDN.
-> npm workspace symlinks alone cannot override this — the static middleware must run first.
-> When the library is eventually published to npm and `ui5-local.yaml` (local SAPUI5) is used,
-> the workspace-based approach will work without `fiori-tools-servestatic`.
-
-### 4. Rebuild after library changes
-
-The consuming app always loads from `dist/`. After modifying the library, run:
-
-```bash
-npm run build   # in ui5-upload-controls/
-```
-
----
-
-## Build
-
-```bash
-npm install
-npm run build
-```
-
-## Development (standalone)
-
-```bash
-npm start          # launches test page (SingleFileUpload.html)
-npm test           # runs QUnit tests headless (Karma)
-npm run testsuite  # opens QUnit test suite in browser
-```
-
-## Testing Notes
-
-### Mocking `fetch` in QUnit tests (Sinon v4 + Chrome Headless)
-
-**Do NOT use `stub.onCall(n).resolves(new Response(...))`** for multiple call sequences.
-This combination causes the test to hang indefinitely in Chrome Headless (Karma disconnects after 30 s with "Some of your tests did a full page reload!").
-
-**Use `stub.callsFake(fn)` instead**, tracking the call index manually:
-
-```ts
-// ❌ Hangs in Chrome Headless
-fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
-fetchStub.onCall(1).resolves(new Response(JSON.stringify({...}), { status: 200 }));
-fetchStub.resolves(new Response(null, { status: 200 }));
-
-// ✅ Works reliably
-fetchStub.callsFake(function() {
-    const i = fetchStub.callCount - 1;
-    if (i === 0) return Promise.resolve({ ok: true, headers: { get: (n) => n === "x-csrf-token" ? "tok" : null } });
-    if (i === 1) return Promise.resolve({ ok: true, json: () => Promise.resolve({ "@odata.id": "..." }) });
-    return Promise.resolve({ ok: true });
-});
-```
-
-> Using plain objects instead of real `Response` instances also avoids potential issues
-> with `Response` body streams being consumed across test runs.
+UI5 tooling automatically discovers the library from `node_modules/` via its `ui5.yaml`. No additional `ui5.yaml` configuration is required in the consuming app.
