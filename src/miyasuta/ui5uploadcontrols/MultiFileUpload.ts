@@ -152,6 +152,7 @@ export default class MultiFileUpload extends Control {
 		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const canOperate = this._computeCanOperate();
+		this._uploadPlugin.setUploadEnabled(canOperate);
 
 		table.bindItems({
 			path: this.getAttachmentsSegment(),

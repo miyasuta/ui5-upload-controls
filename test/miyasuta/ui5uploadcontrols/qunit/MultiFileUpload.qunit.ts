@@ -452,6 +452,22 @@ sap.ui.define([
 		oControl.destroy();
 	});
 
+	QUnit.test("returns false when draftOnly=true and IsActiveEntity=true (active entity)", function(assert) {
+		const oControl = new MultiFileUpload(); // draftOnly defaults to true
+		sinon.stub(oControl, "getBindingContext").returns({
+			getObject: function() { return { IsActiveEntity: true }; }
+		});
+		assert.strictEqual(oControl._computeCanOperate(), false, "cannot operate for active entity when draftOnly=true");
+		oControl.destroy();
+	});
+
+	QUnit.test("returns true when no binding context", function(assert) {
+		const oControl = new MultiFileUpload();
+		sinon.stub(oControl, "getBindingContext").returns(null);
+		assert.strictEqual(oControl._computeCanOperate(), true, "can operate when no binding context");
+		oControl.destroy();
+	});
+
 	// ─── setEnabled ───────────────────────────────────────────────────────────
 
 	QUnit.module("MultiFileUpload - setEnabled");
@@ -487,6 +503,70 @@ sap.ui.define([
 
 		assert.ok(mockDeleteButton.setEnabled.calledOnce, "setEnabled called on delete button");
 		assert.ok(mockDeleteButton.setEnabled.calledWith(true), "delete button is enabled");
+		oControl.destroy();
+	});
+
+	// ─── Upload Button State ──────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - Upload Button State");
+
+	function makeMockContext(isActiveEntity) {
+		return {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=" + isActiveEntity + ")"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
+			getObject: function() { return { IsActiveEntity: isActiveEntity }; }
+		};
+	}
+
+	function makeMockTable() {
+		return { setBindingContext: function() {}, bindItems: function() {} };
+	}
+
+	QUnit.test("upload button disabled after binding active entity with draftOnly=true", function(assert) {
+		const oControl = new MultiFileUpload(); // draftOnly=true by default
+		const mockContext = makeMockContext(true);
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
+
+		oControl._bindTableItems(mockContext);
+
+		assert.strictEqual(oControl._uploadPlugin.getUploadEnabled(), false, "upload button disabled for active entity with draftOnly=true");
+		oControl.destroy();
+	});
+
+	QUnit.test("upload button enabled after binding draft entity with draftOnly=true", function(assert) {
+		const oControl = new MultiFileUpload(); // draftOnly=true by default
+		const mockContext = makeMockContext(false);
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
+
+		oControl._bindTableItems(mockContext);
+
+		assert.strictEqual(oControl._uploadPlugin.getUploadEnabled(), true, "upload button enabled for draft entity with draftOnly=true");
+		oControl.destroy();
+	});
+
+	QUnit.test("upload button enabled after binding active entity with draftOnly=false", function(assert) {
+		const oControl = new MultiFileUpload({ draftOnly: false });
+		const mockContext = makeMockContext(true);
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
+
+		oControl._bindTableItems(mockContext);
+
+		assert.strictEqual(oControl._uploadPlugin.getUploadEnabled(), true, "upload button enabled when draftOnly=false");
+		oControl.destroy();
+	});
+
+	QUnit.test("upload button disabled after binding when enabled=false", function(assert) {
+		const oControl = new MultiFileUpload({ enabled: false });
+		const mockContext = makeMockContext(false);
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
+
+		oControl._bindTableItems(mockContext);
+
+		assert.strictEqual(oControl._uploadPlugin.getUploadEnabled(), false, "upload button disabled when enabled=false");
 		oControl.destroy();
 	});
 
