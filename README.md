@@ -34,6 +34,14 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 
 ---
 
+## Known Limitations
+
+- **SAPUI5 only**: This library depends on `sap.m.plugins.UploadSetwithTable`, which is available in SAPUI5 but not in OpenUI5.
+- **OData V4 only**: Both controls are designed for OData V4 services. OData V2 is not supported.
+- **CAP backend assumed**: The upload/download logic targets CAP's media stream endpoints (`$value`). Compatibility with non-CAP OData services is not guaranteed.
+
+---
+
 ## Installation
 
 ```bash
@@ -183,4 +191,146 @@ npm install ui5-upload-controls
 }
 ```
 
-UI5 tooling automatically discovers the library from `node_modules/` via its `ui5.yaml`. No additional `ui5.yaml` configuration is required in the consuming app.
+### 3. Local development
+
+The default `ui5.yaml` typically routes `/resources` to the SAPUI5 CDN via `fiori-tools-proxy`, which prevents node_modules libraries from being served. Use one of the following approaches:
+
+**Option A: Use a separate `ui5-local.yaml` (recommended)**
+
+If `ui5-local.yaml` does not already exist, create one. The key is to configure `fiori-tools-proxy` **without** the `ui5` section (which routes `/resources` to the SAPUI5 CDN). Without that routing, UI5 tooling automatically serves library resources from `node_modules/` instead.
+
+If `ui5-local.yaml` already exists and includes a mock server configuration, either comment out the mock server section or create a separate file (e.g. `ui5-nock.yaml`) without it.
+
+```yaml
+specVersion: "4.0"
+metadata:
+  name: your-app
+type: application
+framework:
+  name: SAPUI5
+  version: "1.124.0"
+  libraries:
+    - name: sap.m
+    - name: sap.ui.core
+    - name: sap.fe.templates
+    - name: sap.ushell
+    - name: themelib_sap_horizon
+server:
+  customMiddleware:
+    - name: fiori-tools-appreload
+      afterMiddleware: compression
+      configuration:
+        port: 35729
+        path: webapp
+        delay: 300
+    - name: fiori-tools-preview
+      afterMiddleware: fiori-tools-appreload
+      configuration:
+        flp:
+          theme: sap_horizon
+          path: test/flpSandbox.html
+          intent:
+            object: your-app
+            action: tile
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        backend:
+          - path: /odata
+            url: http://localhost:4004
+    # - name: sap-fe-mockserver   # comment out if not using mock server
+    #   beforeMiddleware: csp
+    #   configuration:
+    #     ...
+```
+
+Run with:
+
+```bash
+fiori run --config ./ui5-local.yaml
+```
+
+**Option B: Add `fiori-tools-servestatic` to your existing `ui5.yaml`**
+
+List `fiori-tools-proxy` first in the YAML so it is registered before `fiori-tools-servestatic` references it. The `beforeMiddleware` directive inserts `fiori-tools-servestatic` before the proxy in the actual request chain, so the library is served before the CDN proxy can intercept the request.
+
+```yaml
+server:
+  customMiddleware:
+    - name: fiori-tools-proxy       # must be listed first
+      afterMiddleware: compression
+      configuration:
+        # ... your existing proxy config
+    - name: fiori-tools-servestatic
+      beforeMiddleware: fiori-tools-proxy   # inserted before proxy in request chain
+      configuration:
+        paths:
+          - path: /resources/miyasuta/ui5uploadcontrols
+            src: node_modules/ui5-upload-controls/dist/resources/miyasuta/ui5uploadcontrols
+            fallthrough: false
+```
+
+### 5. Cloud Foundry deployment
+
+#### `ui5-deploy.yaml`
+
+Configure the builder to include the library in the build output and deployment archive:
+
+```yaml
+builder:
+  settings:
+    includeDependency:
+      - miyasuta.ui5uploadcontrols
+  customTasks:
+    - name: ui5-task-zipper
+      afterTask: generateCachebusterInfo
+      configuration:
+        archiveName: your-app
+        relativePaths: true
+        additionalFiles:
+          - xs-app.json
+        includeDependencies:
+          - miyasuta.ui5uploadcontrols
+```
+
+#### `xs-app.json`
+
+Add a route so library resources are served from the HTML5 Application Repository instead of the UI5 CDN:
+
+```json
+{
+  "source": "^/resources/miyasuta/ui5uploadcontrols/(.*)$",
+  "target": "/resources/miyasuta/ui5uploadcontrols/$1",
+  "service": "html5-apps-repo-rt",
+  "authenticationType": "xsuaa"
+}
+```
+
+Place this route **before** the generic `/resources` route.
+
+#### `manifest.json` — `resourceRoots`
+
+Required for resolving the library when launched from SAP Build Work Zone:
+
+```json
+"sap.ui5": {
+  "resourceRoots": {
+    "miyasuta.ui5uploadcontrols": "./resources/miyasuta/ui5uploadcontrols"
+  }
+}
+```
+
+#### `index.html` — `data-sap-ui-resource-roots`
+
+Required for resolving the library when running from the HTML5 Application Repository:
+
+```html
+<script
+    id="sap-ui-bootstrap"
+    src="resources/sap-ui-core.js"
+    data-sap-ui-resource-roots='{
+        "your-app": "./",
+        "miyasuta.ui5uploadcontrols": "./resources/miyasuta/ui5uploadcontrols"
+    }'
+></script>
+```

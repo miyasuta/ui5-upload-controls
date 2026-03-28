@@ -703,6 +703,91 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		});
 	});
 
+	QUnit.test("delete with draftOnly=false and active entity calls draftEdit, clears file on draft, then activates (4 fetch calls)", function(assert) {
+		const done = assert.async();
+
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", draftOnly: false });
+		const fetchStub = this.fetchStub;
+
+		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(ID=guid'1',IsActiveEntity=true)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: true, fileName: "old.pdf" }; },
+			refresh: function() {}
+		});
+
+		// Call 0: CSRF
+		fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(name) { return name === "x-csrf-token" ? "tok" : null; } } });
+		// Call 1: draftEdit
+		fetchStub.onCall(1).resolves({ ok: true, status: 200 });
+		// Call 2: PATCH (clear file on draft)
+		fetchStub.onCall(2).resolves({ ok: true, status: 200 });
+		// Call 3: draftActivate
+		fetchStub.onCall(3).resolves({ ok: true, status: 200 });
+
+		oControl._onDeletePress().then(function() {
+			assert.equal(fetchStub.callCount, 4, "fetch called 4 times: CSRF + draftEdit + PATCH + draftActivate");
+
+			const draftEditCall = fetchStub.getCall(1);
+			assert.equal(draftEditCall.args[0], "/odata/v4/items/Items(ID=guid'1',IsActiveEntity=true)/draftEdit", "draftEdit called on active entity");
+			assert.equal(draftEditCall.args[1].method, "POST", "draftEdit is POST");
+
+			const patchCall = fetchStub.getCall(2);
+			assert.equal(patchCall.args[0], "/odata/v4/items/Items(ID=guid'1',IsActiveEntity=false)", "PATCH targets draft entity URL");
+			const patchBody = JSON.parse(patchCall.args[1].body);
+			assert.strictEqual(patchBody.content, null, "PATCH sets content to null");
+			assert.strictEqual(patchBody.fileName, null, "PATCH sets fileName to null");
+
+			const activateCall = fetchStub.getCall(3);
+			assert.equal(activateCall.args[0], "/odata/v4/items/Items(ID=guid'1',IsActiveEntity=false)/draftActivate", "draftActivate called on draft entity");
+
+			oControl.destroy();
+			done();
+		});
+	});
+
+	// ─── setEnabled ───────────────────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - setEnabled");
+
+	QUnit.test("setEnabled(false) disables file upload and hides delete button regardless of draft state", function(assert) {
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+		});
+		oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		oControl.setEnabled(false);
+
+		const fileUploader = oControl.getAggregation("_fileUploader");
+		const deleteButton = oControl.getAggregation("_deleteButton");
+		assert.strictEqual(fileUploader.getEnabled(), false, "file upload is disabled");
+		assert.strictEqual(deleteButton.getEnabled(), false, "delete button is disabled");
+		oControl.destroy();
+	});
+
+	QUnit.test("setEnabled(true) re-enables file upload when in draft mode", function(assert) {
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", enabled: false });
+		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+		});
+		oControl.placeAt("uiArea1");
+		Core.applyChanges();
+
+		oControl.setEnabled(true);
+
+		const fileUploader = oControl.getAggregation("_fileUploader");
+		const deleteButton = oControl.getAggregation("_deleteButton");
+		assert.strictEqual(fileUploader.getEnabled(), true, "file upload is re-enabled");
+		assert.strictEqual(deleteButton.getEnabled(), true, "delete button is re-enabled");
+		oControl.destroy();
+	});
+
 	// ─── Error Handling ───────────────────────────────────────────────────────
 
 	QUnit.module("SingleFileUpload - Error Handling", {

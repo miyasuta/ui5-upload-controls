@@ -2,11 +2,16 @@
   "name": "ui5-upload-controls",
   "version": "1.0.1",
   "description": "Reusable UI5 control library for file upload/download, designed to work with SAP CAP (LargeBinary and @cap-js/attachments).",
+  "author": "miyasuta",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/miyasuta/ui5-upload-controls.git"
+    "url": "git+https://github.com/miyasuta/ui5-upload-controls.git"
   },
+  "bugs": {
+    "url": "https://github.com/miyasuta/ui5-upload-controls/issues"
+  },
+  "homepage": "https://github.com/miyasuta/ui5-upload-controls#readme",
   "keywords": [
     "ui5",
     "sapui5",
@@ -18,7 +23,9 @@
   "files": [
     "dist/resources",
     "dist/index.d.ts",
-    "ui5.yaml"
+    "ui5.yaml",
+    "README.md",
+    "LICENSE"
   ],
   "types": "dist/index.d.ts",
   "devDependencies": {
