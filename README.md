@@ -45,7 +45,7 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 ## Installation
 
 ```bash
-npm install ui5-upload-controls
+npm install --save-dev ui5-upload-controls
 ```
 
 ---
@@ -176,7 +176,7 @@ entity YourEntity : managed, cuid {
 ### 1. Install the library
 
 ```bash
-npm install ui5-upload-controls
+npm install --save-dev ui5-upload-controls
 ```
 
 ### 2. Declare the library dependency in `manifest.json`
