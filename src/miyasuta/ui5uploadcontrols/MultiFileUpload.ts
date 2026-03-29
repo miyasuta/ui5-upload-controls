@@ -4,7 +4,6 @@
 
 // Provides control miyasuta.ui5uploadcontrols.MultiFileUpload.
 import Control from "sap/ui/core/Control";
-import CustomData from "sap/ui/core/CustomData";
 import Table from "sap/m/Table";
 import Column from "sap/m/Column";
 import ColumnListItem from "sap/m/ColumnListItem";
@@ -80,7 +79,9 @@ export default class MultiFileUpload extends Control {
 
 	private _uploadPlugin!: UploadSetwithTable;
 	private _lastBoundPath: string | undefined;
-	private _contextDetectorSetup = false;
+	private _deferredCheckTimer: ReturnType<typeof setTimeout> | undefined;
+	private _deferredCheckCount = 0;
+	private static readonly MAX_DEFERRED_CHECKS = 50;
 
 	override init(): void {
 		const sPluginId = this.getId() + "--uploadPlugin";
@@ -115,59 +116,53 @@ export default class MultiFileUpload extends Control {
 	}
 
 	override onBeforeRendering(): void {
-		// Set up context detector binding on first render.
-		// CustomData's value binding registers with the OData model via updateBindings
-		// during the initial propagation pass (when _propagateProperties guard passes).
-		// ODataPropertyBinding fires 'change' with reason 'Context' when parent context
-		// changes — this works independently of the control tree propagation mechanism.
-		// The binding triggers invalidate() → onBeforeRendering when context arrives. (#10)
-		if (!this._contextDetectorSetup) {
-			this._contextDetectorSetup = true;
-			const oCustomData = new CustomData({ key: "ui5uploadcontrols-contextDetector" });
-			oCustomData.bindProperty("value", { path: "" });
-			this.addAggregation("customData", oCustomData, true); // suppressInvalidate
-		}
-		// When the binding triggers re-render, the context should now be available
 		if (!this._lastBoundPath) {
 			const context = this.getBindingContext();
-			const obj = context?.getObject() as Record<string, unknown> | undefined;
-			const path = context ? (context as ODataV4Context).getPath() : undefined;
-			console.log("[MultiFileUpload#onBeforeRendering]", {
-				hasContext: !!context,
-				path,
-				IsActiveEntity: obj?.IsActiveEntity,
-				IsActiveEntityInObj: obj ? "IsActiveEntity" in obj : "no obj",
-				_lastBoundPath: this._lastBoundPath
-			});
-			if (context && path) {
-				// For draft entities, wait until IsActiveEntity is loaded in the object.
-				// The CustomData binding may fire before entity data arrives; in that case
-				// getObject() returns an incomplete object without IsActiveEntity, causing
-				// canOperate to be incorrectly true. (#10)
-				if (path.includes("IsActiveEntity=") && !(obj && "IsActiveEntity" in obj)) {
-					console.log("[MultiFileUpload#onBeforeRendering] IsActiveEntity not ready, requesting...");
-					void (context as unknown as ODataV4Context).requestObject()
-						.then(() => {
-							console.log("[MultiFileUpload#onBeforeRendering] requestObject resolved, invalidating");
-							this.invalidate();
-						})
-						.catch(() => {});
-					return;
-				}
+			if (context) {
 				this._bindTableItems(context as ODataV4Context);
-				this._lastBoundPath = path;
+				this._lastBoundPath = (context as ODataV4Context).getPath();
 			}
+		}
+	}
+
+	override exit(): void {
+		if (this._deferredCheckTimer) {
+			clearTimeout(this._deferredCheckTimer);
+			this._deferredCheckTimer = undefined;
 		}
 	}
 
 	private _onModelContextChange(): void {
 		const context = this.getBindingContext();
-		if (!context) return;
-		const currentPath = (context as ODataV4Context).getPath();
-		if (this._lastBoundPath !== currentPath) {
-			this._bindTableItems(context as ODataV4Context);
-			this._lastBoundPath = currentPath;
+		if (context) {
+			const currentPath = (context as ODataV4Context).getPath();
+			if (this._lastBoundPath !== currentPath) {
+				this._bindTableItems(context as ODataV4Context);
+				this._lastBoundPath = currentPath;
+			}
+			return;
 		}
+		// Issue #10: When an annotation datasource exists, UI5's _propagateProperties guard
+		// blocks modelContextChange after the default model's binding context is mutated onto
+		// the shared oPropagatedProperties object. getBindingContext() reads from that shared
+		// object and DOES return the context once available. Poll until found.
+		// INVESTIGATE: Temporarily disabled to check if timeout is actually needed
+		// this._startDeferredContextCheck();
+	}
+
+	private _startDeferredContextCheck(): void {
+		if (this._deferredCheckTimer || this._lastBoundPath) return;
+		this._deferredCheckTimer = setTimeout(() => {
+			this._deferredCheckTimer = undefined;
+			this._deferredCheckCount++;
+			const context = this.getBindingContext();
+			if (context) {
+				this._deferredCheckCount = 0;
+				this._onModelContextChange();
+			} else if (this._deferredCheckCount < MultiFileUpload.MAX_DEFERRED_CHECKS) {
+				this._startDeferredContextCheck();
+			}
+		}, 100);
 	}
 
 	setEnabled(value: boolean): this {
@@ -189,9 +184,20 @@ export default class MultiFileUpload extends Control {
 	private _computeCanOperate(enabled?: boolean): boolean {
 		const isEnabled = enabled ?? this.getEnabled();
 		if (!isEnabled) return false;
+		if (!this.getDraftOnly()) return true;
+		// IsActiveEntity is part of the OData key, so it is always available in
+		// the binding context path — no need to wait for getObject() to load. (#10)
 		const context = this.getBindingContext();
+		// Primary: IsActiveEntity is part of the OData key, so it is always in the
+		// binding context path — works before getObject() resolves. (#10)
+		const path = (context as unknown as { getPath?(): string } | null)?.getPath?.() ?? "";
+		const match = path.match(/IsActiveEntity=(true|false)/i);
+		if (match) {
+			return match[1].toLowerCase() !== "true";
+		}
+		// Fallback: getObject() for non-draft entities or when path is unavailable
 		const obj = context?.getObject() as Record<string, unknown> | undefined;
-		return !(obj?.IsActiveEntity === true && this.getDraftOnly());
+		return !(obj?.IsActiveEntity === true);
 	}
 
 	private _bindTableItems(parentContext: ODataV4Context): void {
