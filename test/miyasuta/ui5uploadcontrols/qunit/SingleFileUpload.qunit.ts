@@ -840,9 +840,9 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		});
 	});
 
-	// ─── Context Detection (#10) ─────────────────────────────────────────────
+	// ─── Context Detection ───────────────────────────────────────────────────
 
-	QUnit.module("SingleFileUpload - Context Detection (#10)", {
+	QUnit.module("SingleFileUpload - Context Detection", {
 		beforeEach: function() {
 			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
 		},
@@ -851,39 +851,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		}
 	});
 
-	QUnit.test("starts deferred context check when modelContextChange fires without context", function(assert) {
-		sinon.stub(this.oControl, "getBindingContext").returns(null);
-
-		this.oControl._onModelContextChange();
-
-		assert.ok(this.oControl._deferredCheckTimer, "deferred check timer is set");
-		clearTimeout(this.oControl._deferredCheckTimer);
-	});
-
-	QUnit.test("deferred check calls invalidate when context becomes available", function(assert) {
-		const done = assert.async();
-		const mockContext = {
-			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
-			getObject: function() { return {}; },
-			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; }
-		};
-		const getBindingContextStub = sinon.stub(this.oControl, "getBindingContext");
-		getBindingContextStub.returns(null);
-		const invalidateStub = sinon.stub(this.oControl, "invalidate");
-
-		this.oControl._onModelContextChange();
-
-		// Make context available before the 100ms timer fires
-		getBindingContextStub.returns(mockContext);
-
-		setTimeout(function() {
-			assert.ok(invalidateStub.called, "invalidate called when context arrives via deferred check");
-			invalidateStub.restore();
-			done();
-		}, 150);
-	});
-
-	QUnit.test("no deferred check when context is immediately available", function(assert) {
+	QUnit.test("calls invalidate when modelContextChange fires with context", function(assert) {
 		const mockContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getObject: function() { return {}; },
@@ -894,19 +862,18 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 		this.oControl._onModelContextChange();
 
-		assert.notOk(this.oControl._deferredCheckTimer, "no timer when context is immediately available");
-		assert.ok(invalidateStub.called, "invalidate called immediately when context is available");
+		assert.ok(invalidateStub.called, "invalidate called when context is available");
 		invalidateStub.restore();
 	});
 
-	QUnit.test("exit clears deferred check timer", function(assert) {
+	QUnit.test("does not call invalidate when modelContextChange fires without context", function(assert) {
 		sinon.stub(this.oControl, "getBindingContext").returns(null);
+		const invalidateStub = sinon.stub(this.oControl, "invalidate");
 
 		this.oControl._onModelContextChange();
-		assert.ok(this.oControl._deferredCheckTimer, "timer set before exit");
 
-		this.oControl.exit();
-		assert.notOk(this.oControl._deferredCheckTimer, "timer cleared after exit");
+		assert.notOk(invalidateStub.called, "invalidate not called when context is absent");
+		invalidateStub.restore();
 	});
 
 });

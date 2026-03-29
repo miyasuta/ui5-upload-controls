@@ -95,10 +95,6 @@ export default class SingleFileUpload extends Control {
 
 	static renderer = SingleFileUploadRenderer;
 
-	private _deferredCheckTimer: ReturnType<typeof setTimeout> | undefined;
-	private _deferredCheckCount = 0;
-	private static readonly MAX_DEFERRED_CHECKS = 50;
-
 	override init(): void {
 		const oFileUploader = new FileUploader({
 			width: "auto",
@@ -122,38 +118,12 @@ export default class SingleFileUpload extends Control {
 		this.attachModelContextChange(this._onModelContextChange.bind(this));
 	}
 
-	override exit(): void {
-		if (this._deferredCheckTimer) {
-			clearTimeout(this._deferredCheckTimer);
-			this._deferredCheckTimer = undefined;
-		}
-	}
-
 	private _onModelContextChange(): void {
 		const modelName = this.getModelName() || undefined;
 		const context = this.getBindingContext(modelName);
 		if (context) {
 			this.invalidate(); // triggers onBeforeRendering
-			return;
 		}
-		// Issue #10: deferred polling for annotation datasource interference.
-		this._startDeferredContextCheck();
-	}
-
-	private _startDeferredContextCheck(): void {
-		if (this._deferredCheckTimer) return;
-		this._deferredCheckTimer = setTimeout(() => {
-			this._deferredCheckTimer = undefined;
-			this._deferredCheckCount++;
-			const modelName = this.getModelName() || undefined;
-			const context = this.getBindingContext(modelName);
-			if (context) {
-				this._deferredCheckCount = 0;
-				this.invalidate();
-			} else if (this._deferredCheckCount < SingleFileUpload.MAX_DEFERRED_CHECKS) {
-				this._startDeferredContextCheck();
-			}
-		}, 100);
 	}
 
 	setEnabled(value: boolean): this {
