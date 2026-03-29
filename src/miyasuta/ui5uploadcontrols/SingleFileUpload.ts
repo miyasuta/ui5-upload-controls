@@ -4,7 +4,6 @@
 
 // Provides control miyasuta.ui5uploadcontrols.SingleFileUpload.
 import Control from "sap/ui/core/Control";
-import CustomData from "sap/ui/core/CustomData";
 import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
@@ -96,7 +95,9 @@ export default class SingleFileUpload extends Control {
 
 	static renderer = SingleFileUploadRenderer;
 
-	private _contextDetectorSetup = false;
+	private _deferredCheckTimer: ReturnType<typeof setTimeout> | undefined;
+	private _deferredCheckCount = 0;
+	private static readonly MAX_DEFERRED_CHECKS = 50;
 
 	override init(): void {
 		const oFileUploader = new FileUploader({
@@ -115,6 +116,44 @@ export default class SingleFileUpload extends Control {
 			press: this._onDeletePress.bind(this)
 		});
 		this.setAggregation("_deleteButton", oDeleteButton);
+
+		// React to binding context propagated from parent containers (e.g. Fiori Elements Object Page).
+		// See MultiFileUpload for annotation datasource workaround details. (#10)
+		this.attachModelContextChange(this._onModelContextChange.bind(this));
+	}
+
+	override exit(): void {
+		if (this._deferredCheckTimer) {
+			clearTimeout(this._deferredCheckTimer);
+			this._deferredCheckTimer = undefined;
+		}
+	}
+
+	private _onModelContextChange(): void {
+		const modelName = this.getModelName() || undefined;
+		const context = this.getBindingContext(modelName);
+		if (context) {
+			this.invalidate(); // triggers onBeforeRendering
+			return;
+		}
+		// Issue #10: deferred polling for annotation datasource interference.
+		this._startDeferredContextCheck();
+	}
+
+	private _startDeferredContextCheck(): void {
+		if (this._deferredCheckTimer) return;
+		this._deferredCheckTimer = setTimeout(() => {
+			this._deferredCheckTimer = undefined;
+			this._deferredCheckCount++;
+			const modelName = this.getModelName() || undefined;
+			const context = this.getBindingContext(modelName);
+			if (context) {
+				this._deferredCheckCount = 0;
+				this.invalidate();
+			} else if (this._deferredCheckCount < SingleFileUpload.MAX_DEFERRED_CHECKS) {
+				this._startDeferredContextCheck();
+			}
+		}, 100);
 	}
 
 	setEnabled(value: boolean): this {
@@ -132,36 +171,25 @@ export default class SingleFileUpload extends Control {
 	private _computeCanOperate(enabled?: boolean): boolean {
 		const isEnabled = enabled ?? this.getEnabled();
 		if (!isEnabled) return false;
+		if (!this.getDraftOnly()) return true;
+		// IsActiveEntity is part of the OData key, so it is always available in
+		// the binding context path — no need to wait for getObject() to load. (#10)
 		const context = this.getBindingContext(this.getModelName() || undefined);
+		// Primary: IsActiveEntity is part of the OData key, so it is always in the
+		// binding context path — works before getObject() resolves. (#10)
+		const path = (context as unknown as { getPath?(): string } | null)?.getPath?.() ?? "";
+		const match = path.match(/IsActiveEntity=(true|false)/i);
+		if (match) {
+			return match[1].toLowerCase() !== "true";
+		}
+		// Fallback: getObject() for non-draft entities or when path is unavailable
 		const obj = context?.getObject() as Record<string, unknown> | undefined;
-		return !(obj?.IsActiveEntity === true && this.getDraftOnly());
+		return !(obj?.IsActiveEntity === true);
 	}
 
 	override onBeforeRendering(): void {
-		// Context detector binding — see MultiFileUpload for detailed explanation. (#10)
-		if (!this._contextDetectorSetup) {
-			this._contextDetectorSetup = true;
-			const modelName = this.getModelName() || undefined;
-			const oCustomData = new CustomData({ key: "ui5uploadcontrols-contextDetector" });
-			oCustomData.bindProperty("value", { path: "", model: modelName });
-			this.addAggregation("customData", oCustomData, true); // suppressInvalidate
-		}
-
 		const modelName = this.getModelName() || undefined;
 		const context = this.getBindingContext(modelName);
-
-		// For draft entities, wait until IsActiveEntity is loaded before rendering.
-		// Same timing issue as MultiFileUpload — see inline comment there. (#10)
-		if (context) {
-			const path = (context as unknown as ODataV4Context).getPath();
-			const obj = context.getObject() as Record<string, unknown> | undefined;
-			if (path.includes("IsActiveEntity=") && !(obj && "IsActiveEntity" in obj)) {
-				void (context as unknown as ODataV4Context).requestObject()
-					.then(() => { this.invalidate(); })
-					.catch(() => {});
-				return;
-			}
-		}
 
 		const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
 		const filenameLink = this.getAggregation("_filenameLink") as Link;

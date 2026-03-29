@@ -851,38 +851,62 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		}
 	});
 
-	QUnit.test("sets up context detector CustomData on first onBeforeRendering", function(assert) {
-		assert.equal(this.oControl.getCustomData().length, 0, "no CustomData before first render");
+	QUnit.test("starts deferred context check when modelContextChange fires without context", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns(null);
 
-		this.oControl.onBeforeRendering();
+		this.oControl._onModelContextChange();
 
-		const aCustomData = this.oControl.getCustomData();
-		assert.equal(aCustomData.length, 1, "one CustomData after first render");
-		assert.equal(aCustomData[0].getKey(), "ui5uploadcontrols-contextDetector", "CustomData has correct key");
+		assert.ok(this.oControl._deferredCheckTimer, "deferred check timer is set");
+		clearTimeout(this.oControl._deferredCheckTimer);
 	});
 
-	QUnit.test("does not duplicate CustomData on subsequent renders", function(assert) {
-		this.oControl.onBeforeRendering();
-		this.oControl.onBeforeRendering();
-		this.oControl.onBeforeRendering();
+	QUnit.test("deferred check calls invalidate when context becomes available", function(assert) {
+		const done = assert.async();
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
+			getObject: function() { return {}; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; }
+		};
+		const getBindingContextStub = sinon.stub(this.oControl, "getBindingContext");
+		getBindingContextStub.returns(null);
+		const invalidateStub = sinon.stub(this.oControl, "invalidate");
 
-		assert.equal(this.oControl.getCustomData().length, 1, "still only one CustomData after multiple renders");
+		this.oControl._onModelContextChange();
+
+		// Make context available before the 100ms timer fires
+		getBindingContextStub.returns(mockContext);
+
+		setTimeout(function() {
+			assert.ok(invalidateStub.called, "invalidate called when context arrives via deferred check");
+			invalidateStub.restore();
+			done();
+		}, 150);
 	});
 
-	QUnit.test("respects modelName property for context detector binding model", function(assert) {
-		const oControl = new SingleFileUpload({
-			fileNameProperty: "fileName",
-			contentProperty: "content",
-			modelName: "myModel"
-		});
+	QUnit.test("no deferred check when context is immediately available", function(assert) {
+		const mockContext = {
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
+			getObject: function() { return {}; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; }
+		};
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+		const invalidateStub = sinon.stub(this.oControl, "invalidate");
 
-		oControl.onBeforeRendering();
+		this.oControl._onModelContextChange();
 
-		const oCustomData = oControl.getCustomData()[0];
-		const oBindingInfo = oCustomData.getBindingInfo("value");
-		assert.ok(oBindingInfo, "CustomData value has binding info");
-		assert.equal(oBindingInfo.parts[0].model, "myModel", "binding uses configured modelName");
-		oControl.destroy();
+		assert.notOk(this.oControl._deferredCheckTimer, "no timer when context is immediately available");
+		assert.ok(invalidateStub.called, "invalidate called immediately when context is available");
+		invalidateStub.restore();
+	});
+
+	QUnit.test("exit clears deferred check timer", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns(null);
+
+		this.oControl._onModelContextChange();
+		assert.ok(this.oControl._deferredCheckTimer, "timer set before exit");
+
+		this.oControl.exit();
+		assert.notOk(this.oControl._deferredCheckTimer, "timer cleared after exit");
 	});
 
 });

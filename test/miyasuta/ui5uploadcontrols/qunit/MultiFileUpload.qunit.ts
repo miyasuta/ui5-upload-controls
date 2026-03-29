@@ -385,6 +385,7 @@ sap.ui.define([
 	QUnit.test("returns true when IsActiveEntity=false (draft mode)", function(assert) {
 		const oControl = new MultiFileUpload();
 		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		assert.strictEqual(oControl._computeCanOperate(), true, "can operate in draft mode");
@@ -394,6 +395,7 @@ sap.ui.define([
 	QUnit.test("returns true when IsActiveEntity is absent (non-draft entity)", function(assert) {
 		const oControl = new MultiFileUpload();
 		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/NonDraftEntity(ID=abc)"; },
 			getObject: function() { return {}; }
 		});
 		assert.strictEqual(oControl._computeCanOperate(), true, "can operate for non-draft entity");
@@ -403,6 +405,7 @@ sap.ui.define([
 	QUnit.test("returns true when draftOnly=false even if IsActiveEntity=true", function(assert) {
 		const oControl = new MultiFileUpload({ draftOnly: false });
 		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=true)"; },
 			getObject: function() { return { IsActiveEntity: true }; }
 		});
 		assert.strictEqual(oControl._computeCanOperate(), true, "can operate when draftOnly=false");
@@ -412,6 +415,7 @@ sap.ui.define([
 	QUnit.test("returns false when enabled=false regardless of draft state", function(assert) {
 		const oControl = new MultiFileUpload({ enabled: false });
 		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		assert.strictEqual(oControl._computeCanOperate(), false, "cannot operate when enabled=false");
@@ -421,6 +425,7 @@ sap.ui.define([
 	QUnit.test("returns false when draftOnly=true and IsActiveEntity=true (active entity)", function(assert) {
 		const oControl = new MultiFileUpload(); // draftOnly defaults to true
 		sinon.stub(oControl, "getBindingContext").returns({
+			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=true)"; },
 			getObject: function() { return { IsActiveEntity: true }; }
 		});
 		assert.strictEqual(oControl._computeCanOperate(), false, "cannot operate for active entity when draftOnly=true");
@@ -604,22 +609,51 @@ sap.ui.define([
 		}
 	});
 
-	QUnit.test("sets up context detector CustomData on first onBeforeRendering", function(assert) {
-		assert.equal(this.oControl.getCustomData().length, 0, "no CustomData before first render");
+	QUnit.test("starts deferred context check when modelContextChange fires without context", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns(null);
 
-		this.oControl.onBeforeRendering();
+		this.oControl._onModelContextChange();
 
-		const aCustomData = this.oControl.getCustomData();
-		assert.equal(aCustomData.length, 1, "one CustomData after first render");
-		assert.equal(aCustomData[0].getKey(), "ui5uploadcontrols-contextDetector", "CustomData has correct key");
+		assert.ok(this.oControl._deferredCheckTimer, "deferred check timer is set");
+		clearTimeout(this.oControl._deferredCheckTimer);
 	});
 
-	QUnit.test("does not duplicate CustomData on subsequent renders", function(assert) {
-		this.oControl.onBeforeRendering();
-		this.oControl.onBeforeRendering();
-		this.oControl.onBeforeRendering();
+	QUnit.test("deferred check binds table items when context becomes available", function(assert) {
+		const done = assert.async();
+		const mockContext = makeMockContext(false);
+		const getBindingContextStub = sinon.stub(this.oControl, "getBindingContext");
+		getBindingContextStub.returns(null);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
 
-		assert.equal(this.oControl.getCustomData().length, 1, "still only one CustomData after multiple renders");
+		this.oControl._onModelContextChange();
+
+		// Make context available before the 100ms timer fires
+		getBindingContextStub.returns(mockContext);
+
+		setTimeout(function() {
+			assert.equal(this.oControl._lastBoundPath, "/Quotes(ID=abc,IsActiveEntity=false)", "_lastBoundPath set after context arrives via deferred check");
+			done();
+		}.bind(this), 150);
+	});
+
+	QUnit.test("no deferred check when context is immediately available", function(assert) {
+		const mockContext = makeMockContext(false);
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
+
+		this.oControl._onModelContextChange();
+
+		assert.notOk(this.oControl._deferredCheckTimer, "no timer when context is immediately available");
+	});
+
+	QUnit.test("exit clears deferred check timer", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns(null);
+
+		this.oControl._onModelContextChange();
+		assert.ok(this.oControl._deferredCheckTimer, "timer set before exit");
+
+		this.oControl.exit();
+		assert.notOk(this.oControl._deferredCheckTimer, "timer cleared after exit");
 	});
 
 	QUnit.test("calls _bindTableItems when context becomes available via onBeforeRendering", function(assert) {
@@ -629,7 +663,7 @@ sap.ui.define([
 
 		this.oControl.onBeforeRendering();
 
-		assert.equal(this.oControl._lastBoundPath, "/Quotes(ID=abc,IsActiveEntity=false)", "_lastBoundPath set after context-triggered onBeforeRendering");
+		assert.equal(this.oControl._lastBoundPath, "/Quotes(ID=abc,IsActiveEntity=false)", "_lastBoundPath set when context is available in onBeforeRendering");
 	});
 
 	QUnit.test("does not call _bindTableItems when context is absent in onBeforeRendering", function(assert) {
