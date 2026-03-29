@@ -840,4 +840,49 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		});
 	});
 
+	// ─── Context Detection (#10) ─────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - Context Detection (#10)", {
+		beforeEach: function() {
+			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		},
+		afterEach: function() {
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("sets up context detector CustomData on first onBeforeRendering", function(assert) {
+		assert.equal(this.oControl.getCustomData().length, 0, "no CustomData before first render");
+
+		this.oControl.onBeforeRendering();
+
+		const aCustomData = this.oControl.getCustomData();
+		assert.equal(aCustomData.length, 1, "one CustomData after first render");
+		assert.equal(aCustomData[0].getKey(), "ui5uploadcontrols-contextDetector", "CustomData has correct key");
+	});
+
+	QUnit.test("does not duplicate CustomData on subsequent renders", function(assert) {
+		this.oControl.onBeforeRendering();
+		this.oControl.onBeforeRendering();
+		this.oControl.onBeforeRendering();
+
+		assert.equal(this.oControl.getCustomData().length, 1, "still only one CustomData after multiple renders");
+	});
+
+	QUnit.test("respects modelName property for context detector binding model", function(assert) {
+		const oControl = new SingleFileUpload({
+			fileNameProperty: "fileName",
+			contentProperty: "content",
+			modelName: "myModel"
+		});
+
+		oControl.onBeforeRendering();
+
+		const oCustomData = oControl.getCustomData()[0];
+		const oBindingInfo = oCustomData.getBindingInfo("value");
+		assert.ok(oBindingInfo, "CustomData value has binding info");
+		assert.equal(oBindingInfo.parts[0].model, "myModel", "binding uses configured modelName");
+		oControl.destroy();
+	});
+
 });

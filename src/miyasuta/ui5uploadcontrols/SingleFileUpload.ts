@@ -4,6 +4,7 @@
 
 // Provides control miyasuta.ui5uploadcontrols.SingleFileUpload.
 import Control from "sap/ui/core/Control";
+import CustomData from "sap/ui/core/CustomData";
 import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
@@ -95,6 +96,8 @@ export default class SingleFileUpload extends Control {
 
 	static renderer = SingleFileUploadRenderer;
 
+	private _contextDetectorSetup = false;
+
 	override init(): void {
 		const oFileUploader = new FileUploader({
 			width: "auto",
@@ -135,8 +138,31 @@ export default class SingleFileUpload extends Control {
 	}
 
 	override onBeforeRendering(): void {
+		// Context detector binding — see MultiFileUpload for detailed explanation. (#10)
+		if (!this._contextDetectorSetup) {
+			this._contextDetectorSetup = true;
+			const modelName = this.getModelName() || undefined;
+			const oCustomData = new CustomData({ key: "ui5uploadcontrols-contextDetector" });
+			oCustomData.bindProperty("value", { path: "", model: modelName });
+			this.addAggregation("customData", oCustomData, true); // suppressInvalidate
+		}
+
 		const modelName = this.getModelName() || undefined;
 		const context = this.getBindingContext(modelName);
+
+		// For draft entities, wait until IsActiveEntity is loaded before rendering.
+		// Same timing issue as MultiFileUpload — see inline comment there. (#10)
+		if (context) {
+			const path = (context as unknown as ODataV4Context).getPath();
+			const obj = context.getObject() as Record<string, unknown> | undefined;
+			if (path.includes("IsActiveEntity=") && !(obj && "IsActiveEntity" in obj)) {
+				void (context as unknown as ODataV4Context).requestObject()
+					.then(() => { this.invalidate(); })
+					.catch(() => {});
+				return;
+			}
+		}
+
 		const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
 		const filenameLink = this.getAggregation("_filenameLink") as Link;
 		const deleteButton = this.getAggregation("_deleteButton") as Button;

@@ -592,4 +592,51 @@ sap.ui.define([
 			done();
 		});
 	});
+
+	// ─── Context Detection (#10) ─────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - Context Detection (#10)", {
+		beforeEach: function() {
+			this.oControl = new MultiFileUpload();
+		},
+		afterEach: function() {
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("sets up context detector CustomData on first onBeforeRendering", function(assert) {
+		assert.equal(this.oControl.getCustomData().length, 0, "no CustomData before first render");
+
+		this.oControl.onBeforeRendering();
+
+		const aCustomData = this.oControl.getCustomData();
+		assert.equal(aCustomData.length, 1, "one CustomData after first render");
+		assert.equal(aCustomData[0].getKey(), "ui5uploadcontrols-contextDetector", "CustomData has correct key");
+	});
+
+	QUnit.test("does not duplicate CustomData on subsequent renders", function(assert) {
+		this.oControl.onBeforeRendering();
+		this.oControl.onBeforeRendering();
+		this.oControl.onBeforeRendering();
+
+		assert.equal(this.oControl.getCustomData().length, 1, "still only one CustomData after multiple renders");
+	});
+
+	QUnit.test("calls _bindTableItems when context becomes available via onBeforeRendering", function(assert) {
+		const mockContext = makeMockContext(false);
+		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
+
+		this.oControl.onBeforeRendering();
+
+		assert.equal(this.oControl._lastBoundPath, "/Quotes(ID=abc,IsActiveEntity=false)", "_lastBoundPath set after context-triggered onBeforeRendering");
+	});
+
+	QUnit.test("does not call _bindTableItems when context is absent in onBeforeRendering", function(assert) {
+		sinon.stub(this.oControl, "getBindingContext").returns(null);
+
+		this.oControl.onBeforeRendering();
+
+		assert.strictEqual(this.oControl._lastBoundPath, undefined, "_lastBoundPath remains undefined when no context");
+	});
 });
