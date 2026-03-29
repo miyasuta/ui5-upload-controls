@@ -93,6 +93,7 @@ sap.ui.define([
 			getObject: function() { return { IsActiveEntity: false }; }
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
 
 		// Call 0: CSRF token GET
 		this.fetchStub.onCall(0).resolves(new Response(null, {
@@ -123,9 +124,7 @@ sap.ui.define([
 			getObject: function() { return { IsActiveEntity: false }; }
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
-
-		const mockTable = { getBinding: function() { return { refresh: function() {} }; } };
-		sinon.stub(this.oControl, "getAggregation").returns(mockTable);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
 
 		// CSRF
 		this.fetchStub.onCall(0).resolves(new Response(null, {
@@ -176,9 +175,7 @@ sap.ui.define([
 			getObject: function() { return { IsActiveEntity: true }; }
 		};
 		sinon.stub(oControl, "getBindingContext").returns(mockContext);
-
-		const mockTable = { getBinding: function() { return { refresh: function() {} }; } };
-		sinon.stub(oControl, "getAggregation").returns(mockTable);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
 
 		// Call 0: CSRF
 		fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
@@ -242,6 +239,7 @@ sap.ui.define([
 			getObject: function() { return { IsActiveEntity: false }; }
 		};
 		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
 
 		fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
 		fetchStub.onCall(1).resolves(new Response(JSON.stringify({ ID: "att-001" }), { status: 201 }));
@@ -288,8 +286,7 @@ sap.ui.define([
 		const mockButton = { getBindingContext: function() { return mockRowContext; } };
 		const mockEvent = { getSource: function() { return mockButton; } };
 
-		const mockTable = { getBinding: function() { return { refresh: function() {} }; } };
-		sinon.stub(this.oControl, "getAggregation").returns(mockTable);
+		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
 
 		// CSRF
 		this.fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
@@ -327,8 +324,7 @@ sap.ui.define([
 		const mockButton = { getBindingContext: function() { return mockRowContext; } };
 		const mockEvent = { getSource: function() { return mockButton; } };
 
-		const mockTable = { getBinding: function() { return { refresh: function() {} }; } };
-		sinon.stub(oControl, "getAggregation").returns(mockTable);
+		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
 
 		// CSRF
 		fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
@@ -598,62 +594,15 @@ sap.ui.define([
 		});
 	});
 
-	// ─── Context Detection (#10) ─────────────────────────────────────────────
+	// ─── Context Detection ───────────────────────────────────────────────────
 
-	QUnit.module("MultiFileUpload - Context Detection (#10)", {
+	QUnit.module("MultiFileUpload - Context Detection", {
 		beforeEach: function() {
 			this.oControl = new MultiFileUpload();
 		},
 		afterEach: function() {
 			this.oControl.destroy();
 		}
-	});
-
-	QUnit.test("starts deferred context check when modelContextChange fires without context", function(assert) {
-		sinon.stub(this.oControl, "getBindingContext").returns(null);
-
-		this.oControl._onModelContextChange();
-
-		assert.ok(this.oControl._deferredCheckTimer, "deferred check timer is set");
-		clearTimeout(this.oControl._deferredCheckTimer);
-	});
-
-	QUnit.test("deferred check binds table items when context becomes available", function(assert) {
-		const done = assert.async();
-		const mockContext = makeMockContext(false);
-		const getBindingContextStub = sinon.stub(this.oControl, "getBindingContext");
-		getBindingContextStub.returns(null);
-		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
-
-		this.oControl._onModelContextChange();
-
-		// Make context available before the 100ms timer fires
-		getBindingContextStub.returns(mockContext);
-
-		setTimeout(function() {
-			assert.equal(this.oControl._lastBoundPath, "/Quotes(ID=abc,IsActiveEntity=false)", "_lastBoundPath set after context arrives via deferred check");
-			done();
-		}.bind(this), 150);
-	});
-
-	QUnit.test("no deferred check when context is immediately available", function(assert) {
-		const mockContext = makeMockContext(false);
-		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
-		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
-
-		this.oControl._onModelContextChange();
-
-		assert.notOk(this.oControl._deferredCheckTimer, "no timer when context is immediately available");
-	});
-
-	QUnit.test("exit clears deferred check timer", function(assert) {
-		sinon.stub(this.oControl, "getBindingContext").returns(null);
-
-		this.oControl._onModelContextChange();
-		assert.ok(this.oControl._deferredCheckTimer, "timer set before exit");
-
-		this.oControl.exit();
-		assert.notOk(this.oControl._deferredCheckTimer, "timer cleared after exit");
 	});
 
 	QUnit.test("calls _bindTableItems when context becomes available via onBeforeRendering", function(assert) {

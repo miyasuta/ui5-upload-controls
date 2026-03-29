@@ -79,9 +79,6 @@ export default class MultiFileUpload extends Control {
 
 	private _uploadPlugin!: UploadSetwithTable;
 	private _lastBoundPath: string | undefined;
-	private _deferredCheckTimer: ReturnType<typeof setTimeout> | undefined;
-	private _deferredCheckCount = 0;
-	private static readonly MAX_DEFERRED_CHECKS = 50;
 
 	override init(): void {
 		const sPluginId = this.getId() + "--uploadPlugin";
@@ -125,13 +122,6 @@ export default class MultiFileUpload extends Control {
 		}
 	}
 
-	override exit(): void {
-		if (this._deferredCheckTimer) {
-			clearTimeout(this._deferredCheckTimer);
-			this._deferredCheckTimer = undefined;
-		}
-	}
-
 	private _onModelContextChange(): void {
 		const context = this.getBindingContext();
 		if (context) {
@@ -142,27 +132,6 @@ export default class MultiFileUpload extends Control {
 			}
 			return;
 		}
-		// Issue #10: When an annotation datasource exists, UI5's _propagateProperties guard
-		// blocks modelContextChange after the default model's binding context is mutated onto
-		// the shared oPropagatedProperties object. getBindingContext() reads from that shared
-		// object and DOES return the context once available. Poll until found.
-		// INVESTIGATE: Temporarily disabled to check if timeout is actually needed
-		// this._startDeferredContextCheck();
-	}
-
-	private _startDeferredContextCheck(): void {
-		if (this._deferredCheckTimer || this._lastBoundPath) return;
-		this._deferredCheckTimer = setTimeout(() => {
-			this._deferredCheckTimer = undefined;
-			this._deferredCheckCount++;
-			const context = this.getBindingContext();
-			if (context) {
-				this._deferredCheckCount = 0;
-				this._onModelContextChange();
-			} else if (this._deferredCheckCount < MultiFileUpload.MAX_DEFERRED_CHECKS) {
-				this._startDeferredContextCheck();
-			}
-		}, 100);
 	}
 
 	setEnabled(value: boolean): this {
