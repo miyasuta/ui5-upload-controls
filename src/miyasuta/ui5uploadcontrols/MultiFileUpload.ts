@@ -341,17 +341,10 @@ export default class MultiFileUpload extends Control {
 
 		const parentContext = this.getBindingContext() as ODataV4Context;
 		if (!parentContext) return;
-		const parentEntityPath = parentContext.getPath();
-		const obj = parentContext.getObject() as Record<string, unknown>;
 
 		try {
 			const csrfToken = await this._fetchCsrfToken(serviceUrl);
-
-			if (obj?.IsActiveEntity === true && !this.getDraftOnly()) {
-				await this._deleteWithDraftLifecycle(serviceUrl, parentEntityPath, attachmentPath, csrfToken);
-			} else {
-				await this._deleteDirect(serviceUrl, attachmentPath, csrfToken);
-			}
+			await this._deleteDirect(serviceUrl, attachmentPath, csrfToken);
 
 			console.info("MultiFileUpload: delete completed");
 			await parentContext.requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
@@ -367,41 +360,6 @@ export default class MultiFileUpload extends Control {
 		});
 		if (!deleteResponse.ok) {
 			throw new Error(`DELETE failed: ${deleteResponse.status} ${deleteResponse.statusText}`);
-		}
-	}
-
-	private async _deleteWithDraftLifecycle(serviceUrl: string, parentEntityPath: string, attachmentPath: string, csrfToken: string): Promise<void> {
-		// Step 1: create a draft of the parent entity
-		const draftEditResponse = await fetch(`${serviceUrl}${parentEntityPath}/draftEdit`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"x-csrf-token": csrfToken
-			},
-			body: JSON.stringify({ PreserveChanges: true })
-		});
-		if (!draftEditResponse.ok) {
-			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
-		}
-
-		// Step 2: derive draft attachment path (same ID, IsActiveEntity=false)
-		const draftAttachmentPath = attachmentPath.replace(/IsActiveEntity=true/i, "IsActiveEntity=false");
-
-		// Step 3: delete from the draft
-		await this._deleteDirect(serviceUrl, draftAttachmentPath, csrfToken);
-
-		// Step 4: activate the draft
-		const draftEntityPath = parentEntityPath.replace(/IsActiveEntity=true/i, "IsActiveEntity=false");
-		const activateResponse = await fetch(`${serviceUrl}${draftEntityPath}/draftActivate`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"x-csrf-token": csrfToken
-			},
-			body: JSON.stringify({})
-		});
-		if (!activateResponse.ok) {
-			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
 		}
 	}
 

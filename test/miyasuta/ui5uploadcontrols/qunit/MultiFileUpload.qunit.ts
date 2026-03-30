@@ -314,7 +314,7 @@ sap.ui.define([
 		}.bind(this));
 	});
 
-	QUnit.test("delete with draftOnly=false and IsActiveEntity=true calls draftEdit and draftActivate", function(assert) {
+	QUnit.test("delete with draftOnly=false and IsActiveEntity=true sends DELETE directly without draft lifecycle", function(assert) {
 		const done = assert.async();
 
 		const oControl = new MultiFileUpload({ attachmentsSegment: "attachments", draftOnly: false });
@@ -338,24 +338,15 @@ sap.ui.define([
 
 		// CSRF
 		fetchStub.onCall(0).resolves(new Response(null, { status: 200, headers: { "x-csrf-token": "tok" } }));
-		// draftEdit
-		fetchStub.onCall(1).resolves(new Response(null, { status: 200 }));
 		// DELETE
-		fetchStub.onCall(2).resolves(new Response(null, { status: 204 }));
-		// draftActivate
-		fetchStub.onCall(3).resolves(new Response(null, { status: 200 }));
+		fetchStub.onCall(1).resolves(new Response(null, { status: 204 }));
 
 		oControl._onRowDeletePress(mockEvent).then(function() {
-			assert.equal(fetchStub.callCount, 4, "fetch called 4 times: CSRF + draftEdit + DELETE + draftActivate");
+			assert.equal(fetchStub.callCount, 2, "fetch called 2 times: CSRF + DELETE (no draft lifecycle)");
 
-			const draftEditCall = fetchStub.getCall(1);
-			assert.equal(draftEditCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=true)/draftEdit", "draftEdit called on active parent entity");
-
-			const deleteCall = fetchStub.getCall(2);
-			assert.equal(deleteCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/attachments(ID=att-001)", "DELETE targets draft attachment");
-
-			const activateCall = fetchStub.getCall(3);
-			assert.equal(activateCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/draftActivate", "draftActivate called on draft entity");
+			const deleteCall = fetchStub.getCall(1);
+			assert.equal(deleteCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=true)/attachments(ID=att-001)", "DELETE targets active entity's attachment directly");
+			assert.equal(deleteCall.args[1].method, "DELETE", "second call is DELETE");
 
 			oControl.destroy();
 			done();
