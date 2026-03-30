@@ -90,7 +90,8 @@ sap.ui.define([
 		const mockContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
-			getObject: function() { return { IsActiveEntity: false }; }
+			getObject: function() { return { IsActiveEntity: false }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
 		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
@@ -121,7 +122,8 @@ sap.ui.define([
 		const mockContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
-			getObject: function() { return { IsActiveEntity: false }; }
+			getObject: function() { return { IsActiveEntity: false }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
 		sinon.stub(this.oControl, "getAggregation").returns(makeMockTable());
@@ -143,6 +145,8 @@ sap.ui.define([
 
 		this.oControl._handleUpload(mockFile).then(function() {
 			assert.equal(this.fetchStub.callCount, 3, "fetch called 3 times: CSRF + POST + PUT");
+			assert.ok(mockContext.requestSideEffects.calledOnce, "requestSideEffects called after upload");
+			assert.deepEqual(mockContext.requestSideEffects.getCall(0).args[0], [{ $NavigationPropertyPath: "attachments" }], "requestSideEffects called with attachments segment");
 
 			const postCall = this.fetchStub.getCall(1);
 			assert.equal(postCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/attachments", "POST targets attachments URL");
@@ -172,7 +176,8 @@ sap.ui.define([
 		const mockContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=true)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
-			getObject: function() { return { IsActiveEntity: true }; }
+			getObject: function() { return { IsActiveEntity: true }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(oControl, "getBindingContext").returns(mockContext);
 		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
@@ -236,7 +241,8 @@ sap.ui.define([
 		const mockContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/quote/"; } }; },
-			getObject: function() { return { IsActiveEntity: false }; }
+			getObject: function() { return { IsActiveEntity: false }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(oControl, "getBindingContext").returns(mockContext);
 		sinon.stub(oControl, "getAggregation").returns(makeMockTable());
@@ -274,7 +280,8 @@ sap.ui.define([
 		// Parent context (draft entity)
 		const mockParentContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=false)"; },
-			getObject: function() { return { IsActiveEntity: false }; }
+			getObject: function() { return { IsActiveEntity: false }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockParentContext);
 
@@ -300,6 +307,8 @@ sap.ui.define([
 			assert.equal(deleteCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/attachments(ID=att-001)", "DELETE targets attachment URL");
 			assert.equal(deleteCall.args[1].method, "DELETE", "second call is DELETE");
 			assert.equal(deleteCall.args[1].headers["x-csrf-token"], "tok", "DELETE sends CSRF token");
+			assert.ok(mockParentContext.requestSideEffects.calledOnce, "requestSideEffects called after delete");
+			assert.deepEqual(mockParentContext.requestSideEffects.getCall(0).args[0], [{ $NavigationPropertyPath: "attachments" }], "requestSideEffects called with attachments segment");
 
 			done();
 		}.bind(this));
@@ -313,7 +322,8 @@ sap.ui.define([
 
 		const mockParentContext = {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=true)"; },
-			getObject: function() { return { IsActiveEntity: true }; }
+			getObject: function() { return { IsActiveEntity: true }; },
+			requestSideEffects: sinon.stub().resolves()
 		};
 		sinon.stub(oControl, "getBindingContext").returns(mockParentContext);
 

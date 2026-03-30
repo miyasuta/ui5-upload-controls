@@ -251,7 +251,7 @@ export default class MultiFileUpload extends Control {
 			}
 
 			console.info("MultiFileUpload: upload completed", file.name);
-			this._bindTableItems(context as ODataV4Context);
+			await (context as ODataV4Context).requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
 		} catch (error) {
 			console.error("MultiFileUpload: upload failed", error);
 		}
@@ -354,7 +354,7 @@ export default class MultiFileUpload extends Control {
 			}
 
 			console.info("MultiFileUpload: delete completed");
-			this._bindTableItems(this.getBindingContext() as ODataV4Context);
+			await parentContext.requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
 		} catch (error) {
 			console.error("MultiFileUpload: delete failed", error);
 		}
