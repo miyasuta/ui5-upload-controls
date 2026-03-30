@@ -169,6 +169,19 @@ entity YourEntity : managed, cuid {
 }
 ```
 
+`@cap-js/attachments` sets `@Core.ContentDisposition.Type: 'inline'` by default on the `content` property, which causes the browser to display the file inline instead of downloading it. Override this with `'attachment'` in your CDS model:
+
+```cds
+annotate Attachments with {
+    content @Core.ContentDisposition: {
+        Filename: filename,
+        Type    : 'attachment'
+    };
+}
+```
+
+> Without this annotation, clicking a file name link opens a blank page in a new tab instead of downloading the file.
+
 ---
 
 ## Integrating into a Consuming App
