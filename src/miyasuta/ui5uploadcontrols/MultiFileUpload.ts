@@ -16,6 +16,7 @@ import UploadSetwithTable from "sap/m/plugins/UploadSetwithTable";
 import ActionsPlaceholder from "sap/m/upload/ActionsPlaceholder";
 import { UploadSetwithTableActionPlaceHolder } from "sap/m/library";
 import Event from "sap/ui/base/Event";
+import MessageBox from "sap/m/MessageBox";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import MultiFileUploadRenderer from "./MultiFileUploadRenderer";
 
@@ -265,7 +266,9 @@ export default class MultiFileUpload extends Control {
 			console.info("MultiFileUpload: upload completed", file.name);
 			await (context as ODataV4Context).requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			console.error("MultiFileUpload: upload failed", error);
+			MessageBox.error(message);
 		}
 	}
 
@@ -285,7 +288,7 @@ export default class MultiFileUpload extends Control {
 			})
 		});
 		if (!postResponse.ok) {
-			throw new Error(`POST failed: ${postResponse.status} ${postResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(postResponse));
 		}
 		const attachmentData = await postResponse.json() as { ID: string };
 		const attachmentId = attachmentData.ID;
@@ -301,7 +304,7 @@ export default class MultiFileUpload extends Control {
 			body: file
 		});
 		if (!putResponse.ok) {
-			throw new Error(`PUT failed: ${putResponse.status} ${putResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(putResponse));
 		}
 	}
 
@@ -316,7 +319,7 @@ export default class MultiFileUpload extends Control {
 			body: JSON.stringify({ PreserveChanges: true })
 		});
 		if (!draftEditResponse.ok) {
-			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(draftEditResponse));
 		}
 
 		// Step 2: derive draft entity path
@@ -335,7 +338,7 @@ export default class MultiFileUpload extends Control {
 			body: JSON.stringify({})
 		});
 		if (!activateResponse.ok) {
-			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(activateResponse));
 		}
 	}
 
@@ -361,7 +364,9 @@ export default class MultiFileUpload extends Control {
 			console.info("MultiFileUpload: delete completed");
 			await parentContext.requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			console.error("MultiFileUpload: delete failed", error);
+			MessageBox.error(message);
 		}
 	}
 
@@ -371,7 +376,16 @@ export default class MultiFileUpload extends Control {
 			headers: { "x-csrf-token": csrfToken }
 		});
 		if (!deleteResponse.ok) {
-			throw new Error(`DELETE failed: ${deleteResponse.status} ${deleteResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(deleteResponse));
+		}
+	}
+
+	private async _parseErrorMessage(response: Response): Promise<string> {
+		try {
+			const body = await response.json() as { error?: { message?: string } };
+			return body?.error?.message ?? `${response.status} ${response.statusText}`;
+		} catch {
+			return `${response.status} ${response.statusText}`;
 		}
 	}
 
