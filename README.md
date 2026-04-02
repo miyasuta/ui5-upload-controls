@@ -16,6 +16,8 @@ A control for uploading and downloading a **single file** stored as a `LargeBina
 - Automatically derives the OData service URL and entity path from the binding context — no URL configuration needed.
 - Supports both draft-enabled and non-draft entities.
 
+![SingleFileUpload](docs/images/SingleFile.png)
+
 ### MultiFileUpload
 
 A control for managing **multiple file attachments** on an OData entity, backed by the `@cap-js/attachments` composition pattern.
@@ -23,6 +25,14 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 - Displays a table of attached files (file name, created date, created by) with per-row delete buttons and an upload button in the toolbar.
 - Automatically binds to the attachments navigation property from the parent entity's binding context.
 - Supports both draft-enabled and non-draft entities.
+
+**Before upload:**
+
+![MultiFileUpload before upload](docs/images/MultiFile_before_upload.png)
+
+**After upload:**
+
+![MultiFileUpload after upload](docs/images/MultiFile_after_upload.png)
 
 ---
 
