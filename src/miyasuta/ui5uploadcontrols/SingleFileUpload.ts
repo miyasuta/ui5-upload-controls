@@ -8,6 +8,7 @@ import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
 import Button from "sap/m/Button";
+import MessageBox from "sap/m/MessageBox";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import SingleFileUploadRenderer from "./SingleFileUploadRenderer";
 
@@ -261,7 +262,9 @@ export default class SingleFileUpload extends Control {
 
 			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			console.error("SingleFileUpload: upload failed", error);
+			MessageBox.error(message);
 		}
 	}
 
@@ -278,7 +281,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({ [this.getFileNameProperty()]: file.name })
 		});
 		if (!patchResponse.ok) {
-			throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(patchResponse));
 		}
 
 		const putResponse = await fetch(contentUrl, {
@@ -290,7 +293,7 @@ export default class SingleFileUpload extends Control {
 			body: file
 		});
 		if (!putResponse.ok) {
-			throw new Error(`PUT failed: ${putResponse.status} ${putResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(putResponse));
 		}
 	}
 
@@ -306,7 +309,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({ PreserveChanges: true })
 		});
 		if (!draftEditResponse.ok) {
-			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(draftEditResponse));
 		}
 
 		// Step 2: derive draft entity URL by switching IsActiveEntity flag
@@ -329,7 +332,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({})
 		});
 		if (!activateResponse.ok) {
-			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(activateResponse));
 		}
 	}
 
@@ -363,7 +366,9 @@ export default class SingleFileUpload extends Control {
 
 			(context as unknown as ODataV4Context).refresh();
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			console.error("SingleFileUpload: delete failed", error);
+			MessageBox.error(message);
 		}
 	}
 
@@ -378,7 +383,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({ [this.getContentProperty()]: null, [this.getFileNameProperty()]: null })
 		});
 		if (!patchResponse.ok) {
-			throw new Error(`PATCH failed: ${patchResponse.status} ${patchResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(patchResponse));
 		}
 	}
 
@@ -394,7 +399,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({ PreserveChanges: true })
 		});
 		if (!draftEditResponse.ok) {
-			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(draftEditResponse));
 		}
 
 		// Step 2: derive draft entity path
@@ -414,7 +419,7 @@ export default class SingleFileUpload extends Control {
 			body: JSON.stringify({})
 		});
 		if (!activateResponse.ok) {
-			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
+			throw new Error(await this._parseErrorMessage(activateResponse));
 		}
 	}
 
@@ -424,5 +429,14 @@ export default class SingleFileUpload extends Control {
 			headers: { "x-csrf-token": "Fetch" }
 		});
 		return response.headers.get("x-csrf-token") ?? "";
+	}
+
+	private async _parseErrorMessage(response: Response): Promise<string> {
+		try {
+			const body = await response.json() as { error?: { message?: string } };
+			return body?.error?.message ?? `${response.status} ${response.statusText}`;
+		} catch {
+			return `${response.status} ${response.statusText}`;
+		}
 	}
 }
