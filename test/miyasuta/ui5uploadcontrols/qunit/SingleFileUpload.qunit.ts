@@ -876,4 +876,116 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		invalidateStub.restore();
 	});
 
+	// ─── modelName Property ───────────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - modelName");
+
+	QUnit.test("getModelName returns configured value", function(assert) {
+		const oControl = new SingleFileUpload({ modelName: "myModel" });
+		assert.equal(oControl.getModelName(), "myModel", "getModelName returns the configured model name");
+		oControl.destroy();
+	});
+
+	QUnit.test("default modelName is empty string", function(assert) {
+		const oControl = new SingleFileUpload();
+		assert.strictEqual(oControl.getModelName(), "", "modelName default is empty string (UI5 normalizes null to '' for string type)");
+		oControl.destroy();
+	});
+
+	QUnit.test("rendering resolves binding context from named model", function(assert) {
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { fileName: "report.pdf" }; }
+		};
+		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
+			return name === "myModel" ? mockContext : null;
+		});
+
+		oControl.onBeforeRendering();
+
+		assert.ok(stub.calledWith("myModel"), "getBindingContext called with 'myModel'");
+		assert.strictEqual(oControl.getAggregation("_filenameLink").getVisible(), true, "filename link visible when named model has file data");
+		oControl.destroy();
+	});
+
+	QUnit.test("rendering resolves binding context from default model when modelName is not set", function(assert) {
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { fileName: "report.pdf" }; }
+		};
+		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
+			return name === undefined ? mockContext : null;
+		});
+
+		oControl.onBeforeRendering();
+
+		assert.ok(stub.calledWith(undefined), "getBindingContext called with undefined for default model");
+		assert.strictEqual(oControl.getAggregation("_filenameLink").getVisible(), true, "filename link visible when default model has file data");
+		oControl.destroy();
+	});
+
+	QUnit.module("SingleFileUpload - modelName Upload/Delete", {
+		beforeEach: function() {
+			this.fetchStub = sinon.stub(window, "fetch");
+		},
+		afterEach: function() {
+			this.fetchStub.restore();
+		}
+	});
+
+	QUnit.test("upload resolves binding context from named model", function(assert) {
+		const done = assert.async();
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false }; },
+			refresh: function() {}
+		};
+		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
+			return name === "myModel" ? mockContext : null;
+		});
+
+		this.fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(n) { return n === "x-csrf-token" ? "tok" : null; } } });
+		this.fetchStub.resolves({ ok: true, status: 200 });
+
+		const mockFile = new File(["data"], "file.txt", { type: "text/plain" });
+		const mockEvent = { getParameter: () => [mockFile] };
+
+		oControl._onFileChange(mockEvent).then(function() {
+			assert.ok(stub.calledWith("myModel"), "getBindingContext called with 'myModel' during upload");
+			assert.equal(this.fetchStub.callCount, 3, "upload was performed (fetch called 3 times: CSRF + PATCH + PUT)");
+			oControl.destroy();
+			done();
+		}.bind(this));
+	});
+
+	QUnit.test("delete resolves binding context from named model", function(assert) {
+		const done = assert.async();
+		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const mockContext = {
+			getPath: function() { return "/Items(1)"; },
+			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
+			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			refresh: function() {}
+		};
+		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
+			return name === "myModel" ? mockContext : null;
+		});
+
+		this.fetchStub.onCall(0).resolves({ ok: true, status: 200, headers: { get: function(n) { return n === "x-csrf-token" ? "tok" : null; } } });
+		this.fetchStub.resolves({ ok: true, status: 200 });
+
+		oControl._onDeletePress().then(function() {
+			assert.ok(stub.calledWith("myModel"), "getBindingContext called with 'myModel' during delete");
+			assert.equal(this.fetchStub.callCount, 2, "delete was performed (fetch called 2 times: CSRF + PATCH)");
+			oControl.destroy();
+			done();
+		}.bind(this));
+	});
+
 });

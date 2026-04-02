@@ -24,6 +24,12 @@ declare module "./MultiFileUpload" {
         When false, both are disabled regardless of draft state.
          */
         enabled?: boolean | PropertyBindingInfo | `{${string}}`;
+
+        /**
+         * Name of the OData model as registered in manifest.json.
+        Omit for the default (unnamed) model.
+         */
+        modelName?: string | PropertyBindingInfo;
     }
 
     export default interface MultiFileUpload {
@@ -31,41 +37,105 @@ declare module "./MultiFileUpload" {
         // property: attachmentsSegment
 
         /**
+         * Gets current value of property "attachmentsSegment".
+         *
          * Navigation property segment name for the attachments composition (e.g. "attachments").
+         *
+         * Default value is: "attachments"
+         * @returns Value of property "attachmentsSegment"
          */
         getAttachmentsSegment(): string;
 
         /**
+         * Sets a new value for property "attachmentsSegment".
+         *
          * Navigation property segment name for the attachments composition (e.g. "attachments").
+         *
+         * When called with a value of "null" or "undefined", the default value of the property will be restored.
+         *
+         * Default value is: "attachments"
+         * @param [attachmentsSegment="attachments"] New value for property "attachmentsSegment"
+         * @returns Reference to "this" in order to allow method chaining
          */
         setAttachmentsSegment(attachmentsSegment: string): this;
 
         // property: draftOnly
 
         /**
+         * Gets current value of property "draftOnly".
+         *
          * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
         When false, draft lifecycle is managed automatically.
+         *
+         * Default value is: true
+         * @returns Value of property "draftOnly"
          */
         getDraftOnly(): boolean;
 
         /**
+         * Sets a new value for property "draftOnly".
+         *
          * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
         When false, draft lifecycle is managed automatically.
+         *
+         * When called with a value of "null" or "undefined", the default value of the property will be restored.
+         *
+         * Default value is: true
+         * @param [draftOnly=true] New value for property "draftOnly"
+         * @returns Reference to "this" in order to allow method chaining
          */
         setDraftOnly(draftOnly: boolean): this;
 
         // property: enabled
 
         /**
+         * Gets current value of property "enabled".
+         *
          * Controls whether upload and delete are enabled.
         When false, both are disabled regardless of draft state.
+         *
+         * Default value is: true
+         * @returns Value of property "enabled"
          */
         getEnabled(): boolean;
 
         /**
+         * Sets a new value for property "enabled".
+         *
          * Controls whether upload and delete are enabled.
         When false, both are disabled regardless of draft state.
+         *
+         * When called with a value of "null" or "undefined", the default value of the property will be restored.
+         *
+         * Default value is: true
+         * @param [enabled=true] New value for property "enabled"
+         * @returns Reference to "this" in order to allow method chaining
          */
         setEnabled(enabled: boolean): this;
+
+        // property: modelName
+
+        /**
+         * Gets current value of property "modelName".
+         *
+         * Name of the OData model as registered in manifest.json.
+        Omit for the default (unnamed) model.
+         *
+         * @returns Value of property "modelName"
+         */
+        getModelName(): string;
+
+        /**
+         * Sets a new value for property "modelName".
+         *
+         * Name of the OData model as registered in manifest.json.
+        Omit for the default (unnamed) model.
+         *
+         * When called with a value of "null" or "undefined", the default value of the property will be restored.
+         *
+         * @param modelName New value for property "modelName"
+         * @returns Reference to "this" in order to allow method chaining
+         */
+        setModelName(modelName: string): this;
     }
 }

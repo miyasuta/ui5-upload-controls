@@ -67,6 +67,15 @@ export default class MultiFileUpload extends Control {
 				type: "boolean",
 				group: "Behavior",
 				defaultValue: true
+			},
+			/**
+			 * Name of the OData model as registered in manifest.json.
+			 * Omit for the default (unnamed) model.
+			 */
+			modelName: {
+				type: "string",
+				group: "Data",
+				defaultValue: null
 			}
 		},
 		aggregations: {
@@ -114,7 +123,7 @@ export default class MultiFileUpload extends Control {
 
 	override onBeforeRendering(): void {
 		if (!this._lastBoundPath) {
-			const context = this.getBindingContext();
+			const context = this.getBindingContext(this.getModelName() || undefined);
 			if (context) {
 				this._bindTableItems(context as ODataV4Context);
 				this._lastBoundPath = (context as ODataV4Context).getPath();
@@ -123,7 +132,7 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private _onModelContextChange(): void {
-		const context = this.getBindingContext();
+		const context = this.getBindingContext(this.getModelName() || undefined);
 		if (context) {
 			const currentPath = (context as ODataV4Context).getPath();
 			if (this._lastBoundPath !== currentPath) {
@@ -156,7 +165,7 @@ export default class MultiFileUpload extends Control {
 		if (!this.getDraftOnly()) return true;
 		// IsActiveEntity is part of the OData key, so it is always available in
 		// the binding context path — no need to wait for getObject() to load. (#10)
-		const context = this.getBindingContext();
+		const context = this.getBindingContext(this.getModelName() || undefined);
 		// Primary: IsActiveEntity is part of the OData key, so it is always in the
 		// binding context path — works before getObject() resolves. (#10)
 		const path = (context as unknown as { getPath?(): string } | null)?.getPath?.() ?? "";
@@ -170,25 +179,27 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private _bindTableItems(parentContext: ODataV4Context): void {
+		const mn = this.getModelName() || undefined;
 		const table = this.getAggregation("_table") as Table;
-		table.setBindingContext(parentContext);
+		table.setBindingContext(parentContext, mn);
 		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const canOperate = this._computeCanOperate();
 		this._uploadPlugin.setUploadEnabled(canOperate);
 
 		table.bindItems({
+			model: mn,
 			path: this.getAttachmentsSegment(),
 			template: new ColumnListItem({
 				cells: [
 					new Link({
-						text: "{filename}",
+						text: { model: mn, path: "filename" },
 						target: "_blank",
 						href: {
-							parts: [{ path: "ID" }],
+							parts: [{ model: mn, path: "ID" }],
 							formatter: (id: string): string => {
 								if (!id) return "";
-								const pContext = this.getBindingContext();
+								const pContext = this.getBindingContext(this.getModelName() || undefined);
 								if (!pContext) return "";
 								const parentPath = (pContext as ODataV4Context).getPath();
 								return `${serviceUrl}${parentPath}/${this.getAttachmentsSegment()}(ID=${id})/content`;
@@ -197,6 +208,7 @@ export default class MultiFileUpload extends Control {
 					}),
 					new Text({
 						text: {
+							model: mn,
 							path: "createdAt",
 							formatter: (value: Date | string | null) => {
 								if (!value) return "";
@@ -205,7 +217,7 @@ export default class MultiFileUpload extends Control {
 							}
 						}
 					}),
-					new Text({ text: "{createdBy}" }),
+					new Text({ text: { model: mn, path: "createdBy" } }),
 					new Button({
 						icon: "sap-icon://decline",
 						type: "Transparent",
@@ -230,7 +242,7 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private async _handleUpload(file: File): Promise<void> {
-		const context = this.getBindingContext();
+		const context = this.getBindingContext(this.getModelName() || undefined);
 		if (!context) {
 			console.error("MultiFileUpload: no binding context found");
 			return;
@@ -332,14 +344,14 @@ export default class MultiFileUpload extends Control {
 
 		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 		const button = event.getSource() as Button;
-		const rowContext = button.getBindingContext() as ODataV4Context;
+		const rowContext = button.getBindingContext(this.getModelName() || undefined) as ODataV4Context;
 		if (!rowContext) return;
 
 		const model = rowContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const attachmentPath = rowContext.getPath();
 
-		const parentContext = this.getBindingContext() as ODataV4Context;
+		const parentContext = this.getBindingContext(this.getModelName() || undefined) as ODataV4Context;
 		if (!parentContext) return;
 
 		try {
