@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<!--
+Custom context file: patches karma.setupContext to remove onbeforeunload,
+which causes false-positive "full page reload" errors when karma-ui5 transitions
+between QUnit test suite pages.
+-->
+<html>
+<head>
+  <title></title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+</head>
+<body>
+  <script src="context.js"></script>
+  <script type="text/javascript">
+    // Patch setupContext so that onbeforeunload is never registered.
+    // Without this, karma-ui5 triggers "full page reload" errors when
+    // transitioning between QUnit test suite pages, even though all tests pass.
+    var _origSetupContext = window.__karma__.setupContext.bind(window.__karma__);
+    window.__karma__.setupContext = function(contextWindow) {
+      _origSetupContext(contextWindow);
+      contextWindow.onbeforeunload = null;
+    };
+  </script>
+  <script type="text/javascript">
+    // Configure our Karma and set up bindings
+    %CLIENT_CONFIG%
+    window.__karma__.setupContext(window);
+
+    // All served files with the latest timestamps
+    %MAPPINGS%
+  </script>
+  <!-- Dynamically replaced with <script> tags -->
+  %SCRIPTS%
+  <!-- Since %SCRIPTS% might include modules, the `loaded()` call needs to be in a module too.
+   This ensures all the tests will have been declared before karma tries to run them. -->
+  <script type="module">
+    window.__karma__.loaded();
+  </script>
+  <script nomodule>
+    window.__karma__.loaded();
+  </script>
+</body>
+</html>

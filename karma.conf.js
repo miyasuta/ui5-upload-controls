@@ -5,6 +5,7 @@ module.exports = function (config) {
         ui5: {
             configPath: "ui5.dev.yaml"
         },
+        customContextFile: "test/karma-context.html",
         browsers: ["Chrome"]
     });
 };
