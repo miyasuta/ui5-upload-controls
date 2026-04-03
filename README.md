@@ -1,6 +1,6 @@
 # ui5-upload-controls
 
-Reusable UI5 control library for file upload and download, designed to work with SAP CAP backends.
+Reusable UI5 control library for file upload and download.
 
 **Namespace:** `miyasuta.ui5uploadcontrols`
 
@@ -38,17 +38,10 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 
 ## Prerequisites
 
-- SAPUI5 1.124+ (required for `sap.m.plugins.UploadSetwithTable`)
-- OData V4 service (CAP Node.js or compatible backend)
-- For `MultiFileUpload`: backend entity must expose an `attachments` composition compatible with `@cap-js/attachments`
-
----
-
-## Known Limitations
-
-- **SAPUI5 only**: This library depends on `sap.m.plugins.UploadSetwithTable`, which is available in SAPUI5 but not in OpenUI5.
-- **OData V4 only**: Both controls are designed for OData V4 services. OData V2 is not supported.
-- **CAP backend assumed**: The upload/download logic targets CAP's media stream endpoints (`$value`). Compatibility with non-CAP OData services is not guaranteed.
+- **Runtime environment**: SAP BTP (HTML5 Application Repository). Other hosting environments are not supported.
+- **Backend**: CAP Node.js exposing an OData V4 service. OData V2 and non-CAP backends are not supported. The upload/download logic targets CAP's media stream endpoints (`$value`).
+- **UI5 version**: SAPUI5 1.124+ (required for `sap.m.plugins.UploadSetwithTable`). OpenUI5 is not supported.
+- **`MultiFileUpload`**: backend entity must expose an `attachments` composition compatible with `@cap-js/attachments`.
 
 ---
 
@@ -57,6 +50,8 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 ```bash
 npm install --save-dev ui5-upload-controls
 ```
+
+`--save-dev` is correct here. The library is bundled into the consuming app's build output at build time (via `includeDependency` in `ui5-deploy.yaml`), so it is not needed as a runtime dependency. At runtime, the browser loads the library's resources directly from the HTML5 Application Repository alongside the app.
 
 ---
 
@@ -143,9 +138,25 @@ Both controls automatically detect draft capability by checking for the `IsActiv
 | not present | any | Non-draft entity — upload proceeds directly |
 | `false` | any | Entity is in draft (edit) mode — upload proceeds directly |
 | `true` | `true` | Entity is active (display mode) — **upload and delete are disabled** |
-| `true` | `false` | Entity is active — the control calls `draftEdit`, performs the operation, then calls `draftActivate` automatically |
+| `true` | `false` | Entity is active — the control manages the draft lifecycle automatically (see below) |
 
-> **Fiori Elements Object Page**: use the default `draftOnly="true"`. The Object Page manages the Edit/Save/Cancel lifecycle; the control must not create or activate drafts independently.
+> **Fiori Elements Object Page**: In the standard case, use `draftOnly="true"` (the default) and let the Object Page manage the Edit/Save/Cancel lifecycle. Use `draftOnly="false"` when you want users to be able to upload files without pressing Edit first — for example, when file attachment should feel like a lightweight action separate from the main form editing flow.
+
+### Automatic Draft Management (`draftOnly="false"`)
+
+When `draftOnly` is `false` and the entity is in display mode (`IsActiveEntity=true`), the control handles the full draft lifecycle transparently on each upload or delete:
+
+1. **`draftEdit`** — creates a draft copy of the active entity (equivalent to pressing the Edit button)
+2. **Upload / Delete** — performs the file operation on the draft entity
+3. **`draftActivate`** — activates the draft, making the change permanent (equivalent to pressing Save)
+
+This allows file operations without requiring the user to manually enter and exit edit mode.
+
+#### Lock conflict
+
+`draftEdit` acquires an exclusive lock on the entity. If another user is already editing the same entity (i.e. a draft lock exists), `draftEdit` returns an error and the operation is aborted. The error message from the server is displayed in a dialog so the user knows the record is locked.
+
+![Lock conflict error dialog](docs/images/lock_conflict.png)
 
 ---
 
@@ -296,13 +307,18 @@ server:
 
 #### `ui5-deploy.yaml`
 
-Configure the builder to include the library in the build output and deployment archive:
+Two settings are required to include the library in the build output and deployment archive:
+
+- **`builder.settings.includeDependency`** — tells the UI5 build toolchain to bundle the library's resources into the build output
+- **`customTasks[ui5-task-zipper].configuration.includeDependencies`** — tells `ui5-task-zipper` to include those resources in the `.zip` archive uploaded to the HTML5 Application Repository
+
+Both must list `miyasuta.ui5uploadcontrols`:
 
 ```yaml
 builder:
   settings:
     includeDependency:
-      - miyasuta.ui5uploadcontrols
+      - miyasuta.ui5uploadcontrols   # bundle library resources into build output
   customTasks:
     - name: ui5-task-zipper
       afterTask: generateCachebusterInfo
@@ -312,7 +328,7 @@ builder:
         additionalFiles:
           - xs-app.json
         includeDependencies:
-          - miyasuta.ui5uploadcontrols
+          - miyasuta.ui5uploadcontrols   # include library resources in the zip archive
 ```
 
 #### `xs-app.json`
