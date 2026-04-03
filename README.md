@@ -64,16 +64,16 @@ npm install --save-dev ui5-upload-controls
 
 ### SingleFileUpload
 
-Place the control in an XML View or Fragment that is bound to an OData entity. The control reads the binding context from its parent automatically.
+Place the control in an XML View or Fragment that is bound to an OData entity. Bind `fileName` to the entity property that stores the file name — the control derives the OData model name and property name from the binding expression automatically.
 
 ```xml
 <mvc:View
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:upload="miyasuta.ui5uploadcontrols">
 
-    <!-- Draft-enabled entity embedded in Fiori Elements Object Page -->
+    <!-- Default (unnamed) model — Fiori Elements Object Page -->
     <upload:SingleFileUpload
-        fileNameProperty="fileName"
+        fileName="{fileName}"
         contentProperty="content" />
 
 </mvc:View>
@@ -83,8 +83,7 @@ With a named model and automatic draft management:
 
 ```xml
 <upload:SingleFileUpload
-    modelName="myModel"
-    fileNameProperty="fileName"
+    fileName="{myModel>fileName}"
     contentProperty="content"
     draftOnly="false" />
 ```
@@ -93,9 +92,8 @@ With a named model and automatic draft management:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `fileNameProperty` | `string` | `null` | Property name on the entity that stores the file name |
+| `fileName` | `string` (binding) | `null` | Bound to the entity property that stores the file name (e.g. `fileName="{myModel>fileName}"`). The binding path is used as the OData property name in PATCH requests; the model name is used to resolve the binding context. Omit the model prefix for the default (unnamed) model: `fileName="{fileName}"` |
 | `contentProperty` | `string` | `"content"` | Property name of the `LargeBinary` field |
-| `modelName` | `string` | `null` | Name of the OData model as registered in `manifest.json`. Omit for the default (unnamed) model |
 | `draftOnly` | `boolean` | `true` | When `true`, upload is enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
 | `width` | `sap.ui.core.CSSSize` | `"auto"` | Width of the control |
 | `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
@@ -104,24 +102,25 @@ With a named model and automatic draft management:
 
 ### MultiFileUpload
 
-Place the control in an XML View or Fragment bound to the parent entity. The control binds to the attachments navigation property automatically.
+Place the control in an XML View or Fragment bound to the parent entity. Bind `attachments` to the navigation property for the attachments composition — the control derives the OData model name and navigation segment from the binding expression automatically.
 
 ```xml
 <mvc:View
     xmlns:mvc="sap.ui.core.mvc"
     xmlns:upload="miyasuta.ui5uploadcontrols">
 
-    <!-- Fiori Elements Object Page — attachments navigation property is "attachments" -->
-    <upload:MultiFileUpload />
+    <!-- Default (unnamed) model — navigation property is "attachments" -->
+    <upload:MultiFileUpload
+        attachments="{attachments}" />
 
 </mvc:View>
 ```
 
-With a custom navigation property name:
+With a named model, custom navigation property, and automatic draft management:
 
 ```xml
 <upload:MultiFileUpload
-    attachmentsSegment="files"
+    attachments="{myModel>files}"
     draftOnly="false" />
 ```
 
@@ -129,7 +128,7 @@ With a custom navigation property name:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `attachmentsSegment` | `string` | `"attachments"` | Navigation property segment name for the attachments composition |
+| `attachments` | `object` (binding) | `null` | Bound to the navigation property segment for the attachments composition (e.g. `attachments="{myModel>files}"`). The binding path is used as the OData navigation segment in POST/DELETE requests; the model name is used to resolve the binding context. Omit the model prefix for the default (unnamed) model: `attachments="{attachments}"` |
 | `draftOnly` | `boolean` | `true` | When `true`, upload and delete are enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
 | `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
 
