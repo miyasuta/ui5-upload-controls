@@ -1,6 +1,6 @@
 {
   "name": "ui5-upload-controls",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Reusable UI5 control library for file upload/download, designed to work with SAP CAP (LargeBinary and @cap-js/attachments).",
   "author": "miyasuta",
   "license": "Apache-2.0",
