@@ -10,20 +10,17 @@ declare module "./SingleFileUpload" {
     interface $SingleFileUploadSettings extends $ControlSettings {
 
         /**
-         * Property name on the entity used to store the file name.
+         * Bound to the entity property that stores the file name (e.g. fileName="{model>fileName}").
+        The binding path is used as the OData property name in PATCH requests;
+        the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: fileName="{fileName}".
          */
-        fileNameProperty?: string | PropertyBindingInfo;
+        fileName?: string | PropertyBindingInfo;
 
         /**
          * Property name of the LargeBinary field.
          */
         contentProperty?: string | PropertyBindingInfo;
-
-        /**
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         */
-        modelName?: string | PropertyBindingInfo;
 
         /**
          * When true, upload is enabled only when the entity is in draft mode (IsActiveEntity = false).
@@ -45,28 +42,34 @@ declare module "./SingleFileUpload" {
 
     export default interface SingleFileUpload {
 
-        // property: fileNameProperty
+        // property: fileName
 
         /**
-         * Gets current value of property "fileNameProperty".
+         * Gets current value of property "fileName".
          *
-         * Property name on the entity used to store the file name.
+         * Bound to the entity property that stores the file name (e.g. fileName="{model>fileName}").
+        The binding path is used as the OData property name in PATCH requests;
+        the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: fileName="{fileName}".
          *
-         * @returns Value of property "fileNameProperty"
+         * @returns Value of property "fileName"
          */
-        getFileNameProperty(): string;
+        getFileName(): string;
 
         /**
-         * Sets a new value for property "fileNameProperty".
+         * Sets a new value for property "fileName".
          *
-         * Property name on the entity used to store the file name.
+         * Bound to the entity property that stores the file name (e.g. fileName="{model>fileName}").
+        The binding path is used as the OData property name in PATCH requests;
+        the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: fileName="{fileName}".
          *
          * When called with a value of "null" or "undefined", the default value of the property will be restored.
          *
-         * @param fileNameProperty New value for property "fileNameProperty"
+         * @param fileName New value for property "fileName"
          * @returns Reference to "this" in order to allow method chaining
          */
-        setFileNameProperty(fileNameProperty: string): this;
+        setFileName(fileName: string): this;
 
         // property: contentProperty
 
@@ -92,31 +95,6 @@ declare module "./SingleFileUpload" {
          * @returns Reference to "this" in order to allow method chaining
          */
         setContentProperty(contentProperty: string): this;
-
-        // property: modelName
-
-        /**
-         * Gets current value of property "modelName".
-         *
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         *
-         * @returns Value of property "modelName"
-         */
-        getModelName(): string;
-
-        /**
-         * Sets a new value for property "modelName".
-         *
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         *
-         * When called with a value of "null" or "undefined", the default value of the property will be restored.
-         *
-         * @param modelName New value for property "modelName"
-         * @returns Reference to "this" in order to allow method chaining
-         */
-        setModelName(modelName: string): this;
 
         // property: draftOnly
 

@@ -9,9 +9,13 @@ declare module "./MultiFileUpload" {
     interface $MultiFileUploadSettings extends $ControlSettings {
 
         /**
-         * Navigation property segment name for the attachments composition (e.g. "attachments").
+         * Bound to the navigation property segment for the attachments composition
+        (e.g. attachments="{model>files}").
+        The binding path is used as the OData navigation segment in POST/DELETE requests
+        and in requestSideEffects; the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: attachments="{files}".
          */
-        attachmentsSegment?: string | PropertyBindingInfo;
+        attachments?: object | PropertyBindingInfo | `{${string}}`;
 
         /**
          * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
@@ -24,40 +28,40 @@ declare module "./MultiFileUpload" {
         When false, both are disabled regardless of draft state.
          */
         enabled?: boolean | PropertyBindingInfo | `{${string}}`;
-
-        /**
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         */
-        modelName?: string | PropertyBindingInfo;
     }
 
     export default interface MultiFileUpload {
 
-        // property: attachmentsSegment
+        // property: attachments
 
         /**
-         * Gets current value of property "attachmentsSegment".
+         * Gets current value of property "attachments".
          *
-         * Navigation property segment name for the attachments composition (e.g. "attachments").
+         * Bound to the navigation property segment for the attachments composition
+        (e.g. attachments="{model>files}").
+        The binding path is used as the OData navigation segment in POST/DELETE requests
+        and in requestSideEffects; the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: attachments="{files}".
          *
-         * Default value is: "attachments"
-         * @returns Value of property "attachmentsSegment"
+         * @returns Value of property "attachments"
          */
-        getAttachmentsSegment(): string;
+        getAttachments(): object;
 
         /**
-         * Sets a new value for property "attachmentsSegment".
+         * Sets a new value for property "attachments".
          *
-         * Navigation property segment name for the attachments composition (e.g. "attachments").
+         * Bound to the navigation property segment for the attachments composition
+        (e.g. attachments="{model>files}").
+        The binding path is used as the OData navigation segment in POST/DELETE requests
+        and in requestSideEffects; the model name is used to resolve the binding context.
+        Omit the model prefix for the default (unnamed) model: attachments="{files}".
          *
          * When called with a value of "null" or "undefined", the default value of the property will be restored.
          *
-         * Default value is: "attachments"
-         * @param [attachmentsSegment="attachments"] New value for property "attachmentsSegment"
+         * @param attachments New value for property "attachments"
          * @returns Reference to "this" in order to allow method chaining
          */
-        setAttachmentsSegment(attachmentsSegment: string): this;
+        setAttachments(attachments: object): this;
 
         // property: draftOnly
 
@@ -112,30 +116,5 @@ declare module "./MultiFileUpload" {
          * @returns Reference to "this" in order to allow method chaining
          */
         setEnabled(enabled: boolean): this;
-
-        // property: modelName
-
-        /**
-         * Gets current value of property "modelName".
-         *
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         *
-         * @returns Value of property "modelName"
-         */
-        getModelName(): string;
-
-        /**
-         * Sets a new value for property "modelName".
-         *
-         * Name of the OData model as registered in manifest.json.
-        Omit for the default (unnamed) model.
-         *
-         * When called with a value of "null" or "undefined", the default value of the property will be restored.
-         *
-         * @param modelName New value for property "modelName"
-         * @returns Reference to "this" in order to allow method chaining
-         */
-        setModelName(modelName: string): this;
     }
 }

@@ -16,23 +16,39 @@ sap.ui.define([
 
 	QUnit.module("SingleFileUpload - Properties");
 
-	QUnit.test("getters return configured values", function(assert) {
-		const oControl = new SingleFileUpload({
-			fileNameProperty: "fileName",
-			contentProperty: "content",
-			draftOnly: true
-		});
-		assert.equal(oControl.getFileNameProperty(), "fileName", "fileNameProperty");
-		assert.equal(oControl.getContentProperty(), "content", "contentProperty");
-		assert.equal(oControl.getDraftOnly(), true, "draftOnly");
+	QUnit.test("binding info extracted correctly from fileName binding expression", function(assert) {
+		// fileName="{myModel>fileName}" → modelName="myModel", fileNameProperty="fileName"
+		const oControl = new SingleFileUpload({ fileName: "{myModel>fileName}", contentProperty: "content" });
+		const binding = oControl._getFileNameBinding();
+		assert.equal(binding.modelName, "myModel", "modelName extracted from binding expression");
+		assert.equal(binding.fileNameProperty, "fileName", "fileNameProperty extracted from binding expression");
+		oControl.destroy();
+	});
+
+	QUnit.test("binding info extracted correctly for default (unnamed) model", function(assert) {
+		// fileName="{fileName}" → modelName=undefined, fileNameProperty="fileName"
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		const binding = oControl._getFileNameBinding();
+		assert.strictEqual(binding.modelName, undefined, "modelName is undefined for default model");
+		assert.equal(binding.fileNameProperty, "fileName", "fileNameProperty extracted for default model");
 		oControl.destroy();
 	});
 
 	QUnit.test("default values are correct", function(assert) {
 		const oControl = new SingleFileUpload();
-		assert.strictEqual(oControl.getFileNameProperty(), "", "fileNameProperty default is empty string (UI5 normalizes null to '' for string type)");
 		assert.strictEqual(oControl.getContentProperty(), "content", "contentProperty default is 'content'");
 		assert.strictEqual(oControl.getDraftOnly(), true, "draftOnly default is true");
+		oControl.destroy();
+	});
+
+	QUnit.test("configured values are returned", function(assert) {
+		const oControl = new SingleFileUpload({
+			fileName: "{fileName}",
+			contentProperty: "binaryData",
+			draftOnly: false
+		});
+		assert.equal(oControl.getContentProperty(), "binaryData", "contentProperty");
+		assert.equal(oControl.getDraftOnly(), false, "draftOnly");
 		oControl.destroy();
 	});
 
@@ -41,7 +57,7 @@ sap.ui.define([
 	QUnit.module("SingleFileUpload - Rendering", {
 		beforeEach: function() {
 			this.oControl = new SingleFileUpload({
-				fileNameProperty: "fileName",
+				fileName: "{fileName}",
 				contentProperty: "content"
 			});
 			this.oControl.placeAt("uiArea1");
@@ -69,7 +85,7 @@ sap.ui.define([
 	QUnit.module("SingleFileUpload - Upload Logic", {
 		beforeEach: function() {
 			this.oControl = new SingleFileUpload({
-				fileNameProperty: "fileName",
+				fileName: "{fileName}",
 				contentProperty: "content"
 			});
 			this.fetchStub = sinon.stub(window, "fetch");
@@ -216,7 +232,7 @@ sap.ui.define([
 			assert.equal(patchCall.args[1].headers["x-csrf-token"], "test-token", "PATCH sends CSRF token");
 
 			const patchBody = JSON.parse(patchCall.args[1].body);
-			assert.equal(patchBody.fileName, "myfile.txt", "PATCH body contains file name under fileNameProperty key");
+			assert.equal(patchBody.fileName, "myfile.txt", "PATCH body contains file name under binding path key");
 
 			const putCall = this.fetchStub.getCall(2);
 			assert.equal(putCall.args[0], "/odata/v4/quote/Quotations(guid'123')/content", "PUT targets content property URL");
@@ -232,7 +248,7 @@ sap.ui.define([
 		const done = assert.async();
 
 		const oControl = new SingleFileUpload({
-			fileNameProperty: "attachmentName",
+			fileName: "{attachmentName}",
 			contentProperty: "binaryData"
 		});
 		const fetchStub = this.fetchStub;
@@ -266,7 +282,7 @@ sap.ui.define([
 
 	QUnit.module("SingleFileUpload - draftOnly=false Flow", {
 		beforeEach: function() {
-			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", draftOnly: false });
+			this.oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content", draftOnly: false });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {
@@ -402,7 +418,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	QUnit.module("SingleFileUpload - Draft Detection");
 
 	QUnit.test("FileUploader disabled when IsActiveEntity=true and draftOnly=true", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", draftOnly: true });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", draftOnly: true });
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
@@ -462,11 +478,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	QUnit.module("SingleFileUpload - Filename Display");
 
 	QUnit.test("filename link is visible with correct text when file exists", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -479,11 +496,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("filename link href points to content stream URL", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { fileName: "report.pdf" }; }
+			getObject: function() { return {}; }
 		});
 		oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -495,7 +513,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.test("requests object data asynchronously when context has no data and invalidates when fileName loads", function(assert) {
 		const done = assert.async();
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
 
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
@@ -517,7 +535,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.test("does not invalidate when async data has no fileName", function(assert) {
 		const done = assert.async();
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
 
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
@@ -538,11 +556,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("filename link is hidden when fileName is empty", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("");
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { fileName: "" }; }
+			getObject: function() { return {}; }
 		});
 		oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -556,7 +575,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.module("SingleFileUpload - File Deletion", {
 		beforeEach: function() {
-			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", draftOnly: true });
+			this.oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content", draftOnly: true });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {
@@ -566,10 +585,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("delete button is hidden when no file exists", function(assert) {
+		sinon.stub(this.oControl, "getFileName").returns("");
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		this.oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -579,10 +599,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("delete button is visible when file exists", function(assert) {
+		sinon.stub(this.oControl, "getFileName").returns("report.pdf");
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		this.oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -592,10 +613,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("delete button is enabled when FileUploader is enabled", function(assert) {
+		sinon.stub(this.oControl, "getFileName").returns("report.pdf");
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		this.oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -605,10 +627,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("delete button is disabled when FileUploader is disabled (active entity + draftOnly)", function(assert) {
+		sinon.stub(this.oControl, "getFileName").returns("report.pdf");
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: true, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: true }; }
 		});
 		this.oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -623,7 +646,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			getObject: function() { return { IsActiveEntity: false }; },
 			refresh: function() {}
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
@@ -660,7 +683,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			getObject: function() { return { IsActiveEntity: false }; },
 			refresh: refreshSpy
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
@@ -683,7 +706,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			getObject: function() { return { IsActiveEntity: false }; },
 			refresh: function() {}
 		};
 		sinon.stub(this.oControl, "getBindingContext").returns(mockContext);
@@ -706,13 +729,13 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	QUnit.test("delete with draftOnly=false and active entity calls draftEdit, clears file on draft, then activates (4 fetch calls)", function(assert) {
 		const done = assert.async();
 
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", draftOnly: false });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content", draftOnly: false });
 		const fetchStub = this.fetchStub;
 
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(ID=guid'1',IsActiveEntity=true)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: true, fileName: "old.pdf" }; },
+			getObject: function() { return { IsActiveEntity: true }; },
 			refresh: function() {}
 		});
 
@@ -751,11 +774,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	QUnit.module("SingleFileUpload - setEnabled");
 
 	QUnit.test("setEnabled(false) disables file upload and hides delete button regardless of draft state", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -770,11 +794,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 	});
 
 	QUnit.test("setEnabled(true) re-enables file upload when in draft mode", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", enabled: false });
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content", enabled: false });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		sinon.stub(oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; }
+			getObject: function() { return { IsActiveEntity: false }; }
 		});
 		oControl.placeAt("uiArea1");
 		Core.applyChanges();
@@ -792,7 +817,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.module("SingleFileUpload - Error Handling", {
 		beforeEach: function() {
-			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+			this.oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {
@@ -828,7 +853,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		sinon.stub(this.oControl, "getBindingContext").returns({
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			getObject: function() { return { IsActiveEntity: false }; },
 			refresh: function() {}
 		});
 
@@ -844,7 +869,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.module("SingleFileUpload - Context Detection", {
 		beforeEach: function() {
-			this.oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+			this.oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
 		},
 		afterEach: function() {
 			this.oControl.destroy();
@@ -876,28 +901,25 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		invalidateStub.restore();
 	});
 
-	// ─── modelName Property ───────────────────────────────────────────────────
+	// ─── Named model binding ──────────────────────────────────────────────────
 
-	QUnit.module("SingleFileUpload - modelName");
+	QUnit.module("SingleFileUpload - Named model binding");
 
-	QUnit.test("getModelName returns configured value", function(assert) {
-		const oControl = new SingleFileUpload({ modelName: "myModel" });
-		assert.equal(oControl.getModelName(), "myModel", "getModelName returns the configured model name");
-		oControl.destroy();
-	});
-
-	QUnit.test("default modelName is empty string", function(assert) {
-		const oControl = new SingleFileUpload();
-		assert.strictEqual(oControl.getModelName(), "", "modelName default is empty string (UI5 normalizes null to '' for string type)");
+	QUnit.test("binding expression encodes model name and property name", function(assert) {
+		const oControl = new SingleFileUpload({ fileName: "{myModel>fileName}", contentProperty: "content" });
+		const binding = oControl._getFileNameBinding();
+		assert.equal(binding.modelName, "myModel", "modelName extracted from binding expression");
+		assert.equal(binding.fileNameProperty, "fileName", "fileNameProperty extracted from binding expression");
 		oControl.destroy();
 	});
 
 	QUnit.test("rendering resolves binding context from named model", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const oControl = new SingleFileUpload({ fileName: "{myModel>fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { fileName: "report.pdf" }; }
+			getObject: function() { return {}; }
 		};
 		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
 			return name === "myModel" ? mockContext : null;
@@ -910,12 +932,13 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		oControl.destroy();
 	});
 
-	QUnit.test("rendering resolves binding context from default model when modelName is not set", function(assert) {
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content" });
+	QUnit.test("rendering resolves binding context from default model when no model prefix", function(assert) {
+		const oControl = new SingleFileUpload({ fileName: "{fileName}", contentProperty: "content" });
+		sinon.stub(oControl, "getFileName").returns("report.pdf");
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { fileName: "report.pdf" }; }
+			getObject: function() { return {}; }
 		};
 		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {
 			return name === undefined ? mockContext : null;
@@ -928,7 +951,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		oControl.destroy();
 	});
 
-	QUnit.module("SingleFileUpload - modelName Upload/Delete", {
+	QUnit.module("SingleFileUpload - Named model Upload/Delete", {
 		beforeEach: function() {
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
@@ -939,7 +962,7 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.test("upload resolves binding context from named model", function(assert) {
 		const done = assert.async();
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const oControl = new SingleFileUpload({ fileName: "{myModel>fileName}", contentProperty: "content" });
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
@@ -966,11 +989,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 
 	QUnit.test("delete resolves binding context from named model", function(assert) {
 		const done = assert.async();
-		const oControl = new SingleFileUpload({ fileNameProperty: "fileName", contentProperty: "content", modelName: "myModel" });
+		const oControl = new SingleFileUpload({ fileName: "{myModel>fileName}", contentProperty: "content" });
 		const mockContext = {
 			getPath: function() { return "/Items(1)"; },
 			getModel: function() { return { getServiceUrl: function() { return "/odata/v4/items/"; } }; },
-			getObject: function() { return { IsActiveEntity: false, fileName: "report.pdf" }; },
+			getObject: function() { return { IsActiveEntity: false }; },
 			refresh: function() {}
 		};
 		const stub = sinon.stub(oControl, "getBindingContext").callsFake(function(name) {

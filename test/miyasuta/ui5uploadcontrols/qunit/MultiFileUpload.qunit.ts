@@ -16,23 +16,39 @@ sap.ui.define([
 
 	QUnit.module("MultiFileUpload - Properties");
 
-	QUnit.test("getters return configured values", function(assert) {
-		const oControl = new MultiFileUpload({
-			attachmentsSegment: "docs",
-			draftOnly: false,
-			enabled: false
-		});
-		assert.equal(oControl.getAttachmentsSegment(), "docs", "attachmentsSegment");
-		assert.equal(oControl.getDraftOnly(), false, "draftOnly");
-		assert.equal(oControl.getEnabled(), false, "enabled");
+	QUnit.test("binding info extracted correctly from attachments binding expression", function(assert) {
+		// attachments="{myModel>docs}" → modelName="myModel", segment="docs"
+		const oControl = new MultiFileUpload({ attachments: "{myModel>docs}" });
+		const binding = oControl._getAttachmentsBinding();
+		assert.equal(binding.modelName, "myModel", "modelName extracted from binding expression");
+		assert.equal(binding.segment, "docs", "segment extracted from binding expression");
+		oControl.destroy();
+	});
+
+	QUnit.test("binding info extracted correctly for default (unnamed) model", function(assert) {
+		// attachments="{attachments}" → modelName=undefined, segment="attachments"
+		const oControl = new MultiFileUpload({ attachments: "{attachments}" });
+		const binding = oControl._getAttachmentsBinding();
+		assert.strictEqual(binding.modelName, undefined, "modelName is undefined for default model");
+		assert.equal(binding.segment, "attachments", "segment extracted for default model");
 		oControl.destroy();
 	});
 
 	QUnit.test("default values are correct", function(assert) {
 		const oControl = new MultiFileUpload();
-		assert.equal(oControl.getAttachmentsSegment(), "attachments", "attachmentsSegment default is 'attachments'");
 		assert.equal(oControl.getDraftOnly(), true, "draftOnly default is true");
 		assert.equal(oControl.getEnabled(), true, "enabled default is true");
+		oControl.destroy();
+	});
+
+	QUnit.test("configured values are returned", function(assert) {
+		const oControl = new MultiFileUpload({
+			attachments: "{docs}",
+			draftOnly: false,
+			enabled: false
+		});
+		assert.equal(oControl.getDraftOnly(), false, "draftOnly");
+		assert.equal(oControl.getEnabled(), false, "enabled");
 		oControl.destroy();
 	});
 
@@ -65,7 +81,7 @@ sap.ui.define([
 
 	QUnit.module("MultiFileUpload - Upload Logic", {
 		beforeEach: function() {
-			this.oControl = new MultiFileUpload({ attachmentsSegment: "attachments" });
+			this.oControl = new MultiFileUpload({ attachments: "{attachments}" });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {
@@ -170,7 +186,7 @@ sap.ui.define([
 	QUnit.test("upload with draftOnly=false and IsActiveEntity=true calls draftEdit first", function(assert) {
 		const done = assert.async();
 
-		const oControl = new MultiFileUpload({ attachmentsSegment: "attachments", draftOnly: false });
+		const oControl = new MultiFileUpload({ attachments: "{attachments}", draftOnly: false });
 		const fetchStub = this.fetchStub;
 
 		const mockContext = {
@@ -232,10 +248,10 @@ sap.ui.define([
 		done();
 	});
 
-	QUnit.test("custom attachmentsSegment is used in POST URL", function(assert) {
+	QUnit.test("custom attachments segment is used in POST URL", function(assert) {
 		const done = assert.async();
 
-		const oControl = new MultiFileUpload({ attachmentsSegment: "docs" });
+		const oControl = new MultiFileUpload({ attachments: "{docs}" });
 		const fetchStub = this.fetchStub;
 
 		const mockContext = {
@@ -255,7 +271,7 @@ sap.ui.define([
 
 		oControl._handleUpload(mockFile).then(function() {
 			const postCall = fetchStub.getCall(1);
-			assert.equal(postCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/docs", "POST URL uses custom attachmentsSegment");
+			assert.equal(postCall.args[0], "/odata/v4/quote/Quotes(ID=abc,IsActiveEntity=false)/docs", "POST URL uses custom segment from binding");
 			oControl.destroy();
 			done();
 		});
@@ -265,7 +281,7 @@ sap.ui.define([
 
 	QUnit.module("MultiFileUpload - Delete Logic", {
 		beforeEach: function() {
-			this.oControl = new MultiFileUpload({ attachmentsSegment: "attachments" });
+			this.oControl = new MultiFileUpload({ attachments: "{attachments}" });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {
@@ -317,7 +333,7 @@ sap.ui.define([
 	QUnit.test("delete with draftOnly=false and IsActiveEntity=true sends DELETE directly without draft lifecycle", function(assert) {
 		const done = assert.async();
 
-		const oControl = new MultiFileUpload({ attachmentsSegment: "attachments", draftOnly: false });
+		const oControl = new MultiFileUpload({ attachments: "{attachments}", draftOnly: false });
 		const fetchStub = this.fetchStub;
 
 		const mockParentContext = {
@@ -542,7 +558,7 @@ sap.ui.define([
 
 	QUnit.module("MultiFileUpload - Error Handling", {
 		beforeEach: function() {
-			this.oControl = new MultiFileUpload({ attachmentsSegment: "attachments" });
+			this.oControl = new MultiFileUpload({ attachments: "{attachments}" });
 			this.fetchStub = sinon.stub(window, "fetch");
 		},
 		afterEach: function() {

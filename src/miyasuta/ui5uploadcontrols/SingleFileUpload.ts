@@ -4,6 +4,7 @@
 
 // Provides control miyasuta.ui5uploadcontrols.SingleFileUpload.
 import Control from "sap/ui/core/Control";
+import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import FileUploader from "sap/ui/unified/FileUploader";
 import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
@@ -35,9 +36,12 @@ export default class SingleFileUpload extends Control {
 		library: "miyasuta.ui5uploadcontrols",
 		properties: {
 			/**
-			 * Property name on the entity used to store the file name.
+			 * Bound to the entity property that stores the file name (e.g. fileName="{model>fileName}").
+			 * The binding path is used as the OData property name in PATCH requests;
+			 * the model name is used to resolve the binding context.
+			 * Omit the model prefix for the default (unnamed) model: fileName="{fileName}".
 			 */
-			fileNameProperty: {
+			fileName: {
 				type: "string",
 				group: "Data",
 				defaultValue: null
@@ -49,15 +53,6 @@ export default class SingleFileUpload extends Control {
 				type: "string",
 				group: "Data",
 				defaultValue: "content"
-			},
-			/**
-			 * Name of the OData model as registered in manifest.json.
-			 * Omit for the default (unnamed) model.
-			 */
-			modelName: {
-				type: "string",
-				group: "Data",
-				defaultValue: null
 			},
 			/**
 			 * When true, upload is enabled only when the entity is in draft mode (IsActiveEntity = false).
@@ -119,8 +114,24 @@ export default class SingleFileUpload extends Control {
 		this.attachModelContextChange(this._onModelContextChange.bind(this));
 	}
 
+	/**
+	 * Extracts the OData model name and property name from the fileName binding info.
+	 * e.g. fileName="{myModel>fileName}" → { modelName: "myModel", fileNameProperty: "fileName" }
+	 * e.g. fileName="{fileName}"         → { modelName: undefined, fileNameProperty: "fileName" }
+	 */
+	private _getFileNameBinding(): { modelName: string | undefined; fileNameProperty: string | undefined } {
+		// UI5 stores binding info in parts[0] for property bindings like "{model>path}".
+		const info = this.getBindingInfo("fileName") as PropertyBindingInfo | undefined;
+		const part0 = info?.parts?.[0];
+		const part = typeof part0 !== "string" ? part0 : undefined;
+		return {
+			modelName: part?.model ?? undefined,
+			fileNameProperty: part?.path ?? undefined
+		};
+	}
+
 	private _onModelContextChange(): void {
-		const modelName = this.getModelName() || undefined;
+		const { modelName } = this._getFileNameBinding();
 		const context = this.getBindingContext(modelName);
 		if (context) {
 			this.invalidate(); // triggers onBeforeRendering
@@ -145,7 +156,8 @@ export default class SingleFileUpload extends Control {
 		if (!this.getDraftOnly()) return true;
 		// IsActiveEntity is part of the OData key, so it is always available in
 		// the binding context path — no need to wait for getObject() to load. (#10)
-		const context = this.getBindingContext(this.getModelName() || undefined);
+		const { modelName } = this._getFileNameBinding();
+		const context = this.getBindingContext(modelName);
 		// Primary: IsActiveEntity is part of the OData key, so it is always in the
 		// binding context path — works before getObject() resolves. (#10)
 		const path = (context as unknown as { getPath?(): string } | null)?.getPath?.() ?? "";
@@ -159,7 +171,7 @@ export default class SingleFileUpload extends Control {
 	}
 
 	override onBeforeRendering(): void {
-		const modelName = this.getModelName() || undefined;
+		const { modelName, fileNameProperty } = this._getFileNameBinding();
 		const context = this.getBindingContext(modelName);
 
 		const fileUploader = this.getAggregation("_fileUploader") as FileUploader;
@@ -181,9 +193,9 @@ export default class SingleFileUpload extends Control {
 		// Apply enabled state (draft detection + enabled master switch)
 		fileUploader.setEnabled(this._computeCanOperate());
 
-		// Filename display: show download link and delete button when a file name exists
-		const fileNameProp = this.getFileNameProperty();
-		const fileName = fileNameProp ? (obj?.[fileNameProp] as string) : undefined;
+		// Filename display: the fileName property is bound to the model, so getFileName()
+		// returns the current value directly.
+		const fileName = this.getFileName();
 		if (fileName) {
 			const model = context.getModel() as unknown as { getServiceUrl(): string };
 			const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
@@ -201,8 +213,8 @@ export default class SingleFileUpload extends Control {
 			// If context object data hasn't loaded yet, request fileName specifically.
 			// requestObject(path) triggers a server fetch if the property isn't cached,
 			// unlike requestObject() which only returns whatever is currently in cache.
-			if ((obj === undefined || obj === null) && fileNameProp) {
-				(context as unknown as ODataV4Context).requestObject(fileNameProp).then((value: unknown) => {
+			if ((obj === undefined || obj === null) && fileNameProperty) {
+				(context as unknown as ODataV4Context).requestObject(fileNameProperty).then((value: unknown) => {
 					if (value) {
 						this.invalidate();
 					}
@@ -218,7 +230,7 @@ export default class SingleFileUpload extends Control {
 		}
 		const file = files[0];
 
-		const modelName = this.getModelName() || undefined;
+		const { modelName } = this._getFileNameBinding();
 		const context = this.getBindingContext(modelName);
 		if (!context) {
 			console.error("SingleFileUpload: no binding context found");
@@ -269,6 +281,7 @@ export default class SingleFileUpload extends Control {
 	}
 
 	private async _uploadDirect(serviceUrl: string, entityPath: string, file: File, csrfToken: string): Promise<void> {
+		const { fileNameProperty } = this._getFileNameBinding();
 		const entityUrl = serviceUrl + entityPath;
 		const contentUrl = `${entityUrl}/${this.getContentProperty()}`;
 
@@ -278,7 +291,7 @@ export default class SingleFileUpload extends Control {
 				"Content-Type": "application/json",
 				"x-csrf-token": csrfToken
 			},
-			body: JSON.stringify({ [this.getFileNameProperty()]: file.name })
+			body: JSON.stringify({ [fileNameProperty!]: file.name })
 		});
 		if (!patchResponse.ok) {
 			throw new Error(await this._parseErrorMessage(patchResponse));
@@ -337,7 +350,7 @@ export default class SingleFileUpload extends Control {
 	}
 
 	async _onDeletePress(): Promise<void> {
-		const modelName = this.getModelName() || undefined;
+		const { modelName } = this._getFileNameBinding();
 		const context = this.getBindingContext(modelName);
 		if (!context) {
 			return;
@@ -373,6 +386,7 @@ export default class SingleFileUpload extends Control {
 	}
 
 	private async _deleteDirect(serviceUrl: string, entityPath: string, csrfToken: string): Promise<void> {
+		const { fileNameProperty } = this._getFileNameBinding();
 		const entityUrl = serviceUrl + entityPath;
 		const patchResponse = await fetch(entityUrl, {
 			method: "PATCH",
@@ -380,7 +394,7 @@ export default class SingleFileUpload extends Control {
 				"Content-Type": "application/json",
 				"x-csrf-token": csrfToken
 			},
-			body: JSON.stringify({ [this.getContentProperty()]: null, [this.getFileNameProperty()]: null })
+			body: JSON.stringify({ [this.getContentProperty()]: null, [fileNameProperty!]: null })
 		});
 		if (!patchResponse.ok) {
 			throw new Error(await this._parseErrorMessage(patchResponse));

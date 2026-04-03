@@ -4,6 +4,7 @@
 
 // Provides control miyasuta.ui5uploadcontrols.MultiFileUpload.
 import Control from "sap/ui/core/Control";
+import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import Table from "sap/m/Table";
 import Column from "sap/m/Column";
 import ColumnListItem from "sap/m/ColumnListItem";
@@ -16,7 +17,6 @@ import UploadSetwithTable from "sap/m/plugins/UploadSetwithTable";
 import ActionsPlaceholder from "sap/m/upload/ActionsPlaceholder";
 import { UploadSetwithTableActionPlaceHolder } from "sap/m/library";
 import Event from "sap/ui/base/Event";
-import MessageBox from "sap/m/MessageBox";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import MultiFileUploadRenderer from "./MultiFileUploadRenderer";
 
@@ -44,12 +44,16 @@ export default class MultiFileUpload extends Control {
 		library: "miyasuta.ui5uploadcontrols",
 		properties: {
 			/**
-			 * Navigation property segment name for the attachments composition (e.g. "attachments").
+			 * Bound to the navigation property segment for the attachments composition
+			 * (e.g. attachments="{model>files}").
+			 * The binding path is used as the OData navigation segment in POST/DELETE requests
+			 * and in requestSideEffects; the model name is used to resolve the binding context.
+			 * Omit the model prefix for the default (unnamed) model: attachments="{files}".
 			 */
-			attachmentsSegment: {
-				type: "string",
+			attachments: {
+				type: "object",
 				group: "Data",
-				defaultValue: "attachments"
+				defaultValue: null
 			},
 			/**
 			 * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
@@ -68,15 +72,6 @@ export default class MultiFileUpload extends Control {
 				type: "boolean",
 				group: "Behavior",
 				defaultValue: true
-			},
-			/**
-			 * Name of the OData model as registered in manifest.json.
-			 * Omit for the default (unnamed) model.
-			 */
-			modelName: {
-				type: "string",
-				group: "Data",
-				defaultValue: null
 			}
 		},
 		aggregations: {
@@ -122,9 +117,26 @@ export default class MultiFileUpload extends Control {
 		this.attachModelContextChange(this._onModelContextChange.bind(this));
 	}
 
+	/**
+	 * Extracts the OData model name and navigation segment from the attachments binding info.
+	 * e.g. attachments="{myModel>files}" → { modelName: "myModel", segment: "files" }
+	 * e.g. attachments="{files}"         → { modelName: undefined, segment: "files" }
+	 */
+	private _getAttachmentsBinding(): { modelName: string | undefined; segment: string | undefined } {
+		// UI5 stores binding info in parts[0] for property bindings like "{model>path}".
+		const info = this.getBindingInfo("attachments") as PropertyBindingInfo | undefined;
+		const part0 = info?.parts?.[0];
+		const part = typeof part0 !== "string" ? part0 : undefined;
+		return {
+			modelName: part?.model ?? undefined,
+			segment: part?.path ?? undefined
+		};
+	}
+
 	override onBeforeRendering(): void {
 		if (!this._lastBoundPath) {
-			const context = this.getBindingContext(this.getModelName() || undefined);
+			const { modelName } = this._getAttachmentsBinding();
+			const context = this.getBindingContext(modelName);
 			if (context) {
 				this._bindTableItems(context as ODataV4Context);
 				this._lastBoundPath = (context as ODataV4Context).getPath();
@@ -133,7 +145,8 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private _onModelContextChange(): void {
-		const context = this.getBindingContext(this.getModelName() || undefined);
+		const { modelName } = this._getAttachmentsBinding();
+		const context = this.getBindingContext(modelName);
 		if (context) {
 			const currentPath = (context as ODataV4Context).getPath();
 			if (this._lastBoundPath !== currentPath) {
@@ -166,7 +179,8 @@ export default class MultiFileUpload extends Control {
 		if (!this.getDraftOnly()) return true;
 		// IsActiveEntity is part of the OData key, so it is always available in
 		// the binding context path — no need to wait for getObject() to load. (#10)
-		const context = this.getBindingContext(this.getModelName() || undefined);
+		const { modelName } = this._getAttachmentsBinding();
+		const context = this.getBindingContext(modelName);
 		// Primary: IsActiveEntity is part of the OData key, so it is always in the
 		// binding context path — works before getObject() resolves. (#10)
 		const path = (context as unknown as { getPath?(): string } | null)?.getPath?.() ?? "";
@@ -180,7 +194,8 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private _bindTableItems(parentContext: ODataV4Context): void {
-		const mn = this.getModelName() || undefined;
+		const { modelName, segment } = this._getAttachmentsBinding();
+		const mn = modelName;
 		const table = this.getAggregation("_table") as Table;
 		table.setBindingContext(parentContext, mn);
 		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
@@ -190,7 +205,7 @@ export default class MultiFileUpload extends Control {
 
 		table.bindItems({
 			model: mn,
-			path: this.getAttachmentsSegment(),
+			path: segment!,
 			template: new ColumnListItem({
 				cells: [
 					new Link({
@@ -200,10 +215,11 @@ export default class MultiFileUpload extends Control {
 							parts: [{ model: mn, path: "ID" }],
 							formatter: (id: string): string => {
 								if (!id) return "";
-								const pContext = this.getBindingContext(this.getModelName() || undefined);
+								const { modelName: mn2, segment: seg } = this._getAttachmentsBinding();
+								const pContext = this.getBindingContext(mn2);
 								if (!pContext) return "";
 								const parentPath = (pContext as ODataV4Context).getPath();
-								return `${serviceUrl}${parentPath}/${this.getAttachmentsSegment()}(ID=${id})/content`;
+								return `${serviceUrl}${parentPath}/${seg}(ID=${id})/content`;
 							}
 						}
 					}),
@@ -243,7 +259,8 @@ export default class MultiFileUpload extends Control {
 	}
 
 	private async _handleUpload(file: File): Promise<void> {
-		const context = this.getBindingContext(this.getModelName() || undefined);
+		const { modelName } = this._getAttachmentsBinding();
+		const context = this.getBindingContext(modelName);
 		if (!context) {
 			console.error("MultiFileUpload: no binding context found");
 			return;
@@ -263,17 +280,17 @@ export default class MultiFileUpload extends Control {
 				await this._uploadDirect(serviceUrl, entityPath, file, csrfToken);
 			}
 
+			const { segment } = this._getAttachmentsBinding();
 			console.info("MultiFileUpload: upload completed", file.name);
-			await (context as ODataV4Context).requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
+			await (context as ODataV4Context).requestSideEffects([{ $NavigationPropertyPath: segment! }]);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
 			console.error("MultiFileUpload: upload failed", error);
-			MessageBox.error(message);
 		}
 	}
 
 	private async _uploadDirect(serviceUrl: string, entityPath: string, file: File, csrfToken: string): Promise<void> {
-		const attachmentsUrl = `${serviceUrl}${entityPath}/${this.getAttachmentsSegment()}`;
+		const { segment } = this._getAttachmentsBinding();
+		const attachmentsUrl = `${serviceUrl}${entityPath}/${segment}`;
 
 		// Step 1: POST to create the attachment entity record
 		const postResponse = await fetch(attachmentsUrl, {
@@ -288,7 +305,7 @@ export default class MultiFileUpload extends Control {
 			})
 		});
 		if (!postResponse.ok) {
-			throw new Error(await this._parseErrorMessage(postResponse));
+			throw new Error(`POST failed: ${postResponse.status} ${postResponse.statusText}`);
 		}
 		const attachmentData = await postResponse.json() as { ID: string };
 		const attachmentId = attachmentData.ID;
@@ -304,7 +321,7 @@ export default class MultiFileUpload extends Control {
 			body: file
 		});
 		if (!putResponse.ok) {
-			throw new Error(await this._parseErrorMessage(putResponse));
+			throw new Error(`PUT failed: ${putResponse.status} ${putResponse.statusText}`);
 		}
 	}
 
@@ -319,7 +336,7 @@ export default class MultiFileUpload extends Control {
 			body: JSON.stringify({ PreserveChanges: true })
 		});
 		if (!draftEditResponse.ok) {
-			throw new Error(await this._parseErrorMessage(draftEditResponse));
+			throw new Error(`draftEdit failed: ${draftEditResponse.status} ${draftEditResponse.statusText}`);
 		}
 
 		// Step 2: derive draft entity path
@@ -338,7 +355,7 @@ export default class MultiFileUpload extends Control {
 			body: JSON.stringify({})
 		});
 		if (!activateResponse.ok) {
-			throw new Error(await this._parseErrorMessage(activateResponse));
+			throw new Error(`draftActivate failed: ${activateResponse.status} ${activateResponse.statusText}`);
 		}
 	}
 
@@ -347,14 +364,15 @@ export default class MultiFileUpload extends Control {
 
 		// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 		const button = event.getSource() as Button;
-		const rowContext = button.getBindingContext(this.getModelName() || undefined) as ODataV4Context;
+		const { modelName, segment } = this._getAttachmentsBinding();
+		const rowContext = button.getBindingContext(modelName) as ODataV4Context;
 		if (!rowContext) return;
 
 		const model = rowContext.getModel() as unknown as { getServiceUrl(): string };
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
 		const attachmentPath = rowContext.getPath();
 
-		const parentContext = this.getBindingContext(this.getModelName() || undefined) as ODataV4Context;
+		const parentContext = this.getBindingContext(modelName) as ODataV4Context;
 		if (!parentContext) return;
 
 		try {
@@ -362,11 +380,9 @@ export default class MultiFileUpload extends Control {
 			await this._deleteDirect(serviceUrl, attachmentPath, csrfToken);
 
 			console.info("MultiFileUpload: delete completed");
-			await parentContext.requestSideEffects([{ $NavigationPropertyPath: this.getAttachmentsSegment() }]);
+			await parentContext.requestSideEffects([{ $NavigationPropertyPath: segment! }]);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
 			console.error("MultiFileUpload: delete failed", error);
-			MessageBox.error(message);
 		}
 	}
 
@@ -376,16 +392,7 @@ export default class MultiFileUpload extends Control {
 			headers: { "x-csrf-token": csrfToken }
 		});
 		if (!deleteResponse.ok) {
-			throw new Error(await this._parseErrorMessage(deleteResponse));
-		}
-	}
-
-	private async _parseErrorMessage(response: Response): Promise<string> {
-		try {
-			const body = await response.json() as { error?: { message?: string } };
-			return body?.error?.message ?? `${response.status} ${response.statusText}`;
-		} catch {
-			return `${response.status} ${response.statusText}`;
+			throw new Error(`DELETE failed: ${deleteResponse.status} ${deleteResponse.statusText}`);
 		}
 	}
 
