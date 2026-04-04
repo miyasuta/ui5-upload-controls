@@ -510,7 +510,8 @@ sap.ui.define([
 	function makeMockContext(isActiveEntity) {
 		const mockMetaModel = {
 			getMetaPath: function() { return "/SomeService.Entity/attachments"; },
-			getObject: function() { return undefined; }
+			getObject: function() { return undefined; },
+			requestObject: function() { return Promise.resolve(undefined); }
 		};
 		return {
 			getPath: function() { return "/Quotes(ID=abc,IsActiveEntity=" + isActiveEntity + ")"; },

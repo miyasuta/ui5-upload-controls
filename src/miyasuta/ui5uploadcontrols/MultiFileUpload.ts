@@ -144,8 +144,7 @@ export default class MultiFileUpload extends Control {
 			const { modelName } = this._getAttachmentsBinding();
 			const context = this.getBindingContext(modelName);
 			if (context) {
-				this._bindTableItems(context as ODataV4Context);
-				this._lastBoundPath = (context as ODataV4Context).getPath();
+				this._scheduleBindTableItems(context as ODataV4Context);
 			}
 		}
 	}
@@ -154,13 +153,26 @@ export default class MultiFileUpload extends Control {
 		const { modelName } = this._getAttachmentsBinding();
 		const context = this.getBindingContext(modelName);
 		if (context) {
-			const currentPath = (context as ODataV4Context).getPath();
-			if (this._lastBoundPath !== currentPath) {
-				this._bindTableItems(context as ODataV4Context);
-				this._lastBoundPath = currentPath;
-			}
-			return;
+			this._scheduleBindTableItems(context as ODataV4Context);
 		}
+	}
+
+	/**
+	 * Waits for OData metadata to be loaded before building columns and binding items.
+	 * Using getObject() synchronously fails in freestyle apps where metadata is not yet
+	 * fetched at render time — requestMetadata() ensures labels resolve correctly.
+	 */
+	private _scheduleBindTableItems(context: ODataV4Context): void {
+		const targetPath = context.getPath();
+		if (this._lastBoundPath === targetPath) return;
+		this._lastBoundPath = targetPath;
+		const model = context.getModel() as ODataModel;
+		void model.getMetaModel().requestObject("/").then(() => {
+			// Re-check: path may have changed while metadata was loading
+			if (this._lastBoundPath === targetPath) {
+				this._bindTableItems(context);
+			}
+		});
 	}
 
 	setEnabled(value: boolean): this {
