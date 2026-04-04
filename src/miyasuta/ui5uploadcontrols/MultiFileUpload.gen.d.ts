@@ -28,6 +28,13 @@ declare module "./MultiFileUpload" {
         When false, both are disabled regardless of draft state.
          */
         enabled?: boolean | PropertyBindingInfo | `{${string}}`;
+
+        /**
+         * Ordered list of attachment property names to display as columns between
+        the fixed File Name column (first) and the Delete button column (last).
+        Available names: any property of the Attachments entity, e.g. "createdAt", "createdBy", "mimeType".
+         */
+        displayProperties?: string[] | PropertyBindingInfo | `{${string}}`;
     }
 
     export default interface MultiFileUpload {
@@ -35,86 +42,65 @@ declare module "./MultiFileUpload" {
         // property: attachments
 
         /**
-         * Gets current value of property "attachments".
-         *
          * Bound to the navigation property segment for the attachments composition
         (e.g. attachments="{model>files}").
         The binding path is used as the OData navigation segment in POST/DELETE requests
         and in requestSideEffects; the model name is used to resolve the binding context.
         Omit the model prefix for the default (unnamed) model: attachments="{files}".
-         *
-         * @returns Value of property "attachments"
          */
         getAttachments(): object;
 
         /**
-         * Sets a new value for property "attachments".
-         *
          * Bound to the navigation property segment for the attachments composition
         (e.g. attachments="{model>files}").
         The binding path is used as the OData navigation segment in POST/DELETE requests
         and in requestSideEffects; the model name is used to resolve the binding context.
         Omit the model prefix for the default (unnamed) model: attachments="{files}".
-         *
-         * When called with a value of "null" or "undefined", the default value of the property will be restored.
-         *
-         * @param attachments New value for property "attachments"
-         * @returns Reference to "this" in order to allow method chaining
          */
         setAttachments(attachments: object): this;
 
         // property: draftOnly
 
         /**
-         * Gets current value of property "draftOnly".
-         *
          * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
         When false, draft lifecycle is managed automatically.
-         *
-         * Default value is: true
-         * @returns Value of property "draftOnly"
          */
         getDraftOnly(): boolean;
 
         /**
-         * Sets a new value for property "draftOnly".
-         *
          * When true, upload/delete is enabled only when the entity is in draft mode (IsActiveEntity = false).
         When false, draft lifecycle is managed automatically.
-         *
-         * When called with a value of "null" or "undefined", the default value of the property will be restored.
-         *
-         * Default value is: true
-         * @param [draftOnly=true] New value for property "draftOnly"
-         * @returns Reference to "this" in order to allow method chaining
          */
         setDraftOnly(draftOnly: boolean): this;
 
         // property: enabled
 
         /**
-         * Gets current value of property "enabled".
-         *
          * Controls whether upload and delete are enabled.
         When false, both are disabled regardless of draft state.
-         *
-         * Default value is: true
-         * @returns Value of property "enabled"
          */
         getEnabled(): boolean;
 
         /**
-         * Sets a new value for property "enabled".
-         *
          * Controls whether upload and delete are enabled.
         When false, both are disabled regardless of draft state.
-         *
-         * When called with a value of "null" or "undefined", the default value of the property will be restored.
-         *
-         * Default value is: true
-         * @param [enabled=true] New value for property "enabled"
-         * @returns Reference to "this" in order to allow method chaining
          */
         setEnabled(enabled: boolean): this;
+
+        // property: displayProperties
+
+        /**
+         * Ordered list of attachment property names to display as columns between
+        the fixed File Name column (first) and the Delete button column (last).
+        Available names: any property of the Attachments entity, e.g. "createdAt", "createdBy", "mimeType".
+         */
+        getDisplayProperties(): string[];
+
+        /**
+         * Ordered list of attachment property names to display as columns between
+        the fixed File Name column (first) and the Delete button column (last).
+        Available names: any property of the Attachments entity, e.g. "createdAt", "createdBy", "mimeType".
+         */
+        setDisplayProperties(displayProperties: string[]): this;
     }
 }

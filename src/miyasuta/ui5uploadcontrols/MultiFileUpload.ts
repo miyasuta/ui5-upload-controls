@@ -73,6 +73,16 @@ export default class MultiFileUpload extends Control {
 				type: "boolean",
 				group: "Behavior",
 				defaultValue: true
+			},
+			/**
+			 * Ordered list of attachment property names to display as columns between
+			 * the fixed File Name column (first) and the Delete button column (last).
+			 * Available names: any property of the Attachments entity, e.g. "createdAt", "createdBy", "mimeType".
+			 */
+			displayProperties: {
+				type: "string[]",
+				group: "Behavior",
+				defaultValue: ["createdAt", "createdBy"]
 			}
 		},
 		aggregations: {
@@ -100,13 +110,8 @@ export default class MultiFileUpload extends Control {
 		});
 
 		const oTable = new Table({
-			headerToolbar: new Toolbar({ content: [new ToolbarSpacer(), oPlaceholder] }),
-			columns: [
-				new Column({ header: new Text({ text: "" }) }),
-				new Column({ header: new Text({ text: "" }) }),
-				new Column({ header: new Text({ text: "" }) }),
-				new Column({ hAlign: "End", width: "4rem" })
-			]
+			headerToolbar: new Toolbar({ content: [new ToolbarSpacer(), oPlaceholder] })
+			// columns are built dynamically in _bindTableItems()
 		});
 
 		oTable.addDependent(this._uploadPlugin);
@@ -164,9 +169,11 @@ export default class MultiFileUpload extends Control {
 		const table = this.getAggregation("_table") as Table;
 		const canOperate = this._computeCanOperate(value);
 		this._uploadPlugin.setUploadEnabled(canOperate);
+		// Delete button is always the last cell: filename link + N display-property cells + delete button
+		const deleteIndex = 1 + (this.getDisplayProperties() as string[]).length;
 		table.getItems().forEach((item) => {
 			const cells = (item as ColumnListItem).getCells();
-			const deleteButton = cells[3] as Button;
+			const deleteButton = cells[deleteIndex] as Button;
 			if (deleteButton) {
 				deleteButton.setEnabled(canOperate);
 			}
@@ -206,13 +213,21 @@ export default class MultiFileUpload extends Control {
 		const metaModel = model.getMetaModel();
 		const metaPath = metaModel.getMetaPath(`${parentContext.getPath()}/${segment}`);
 		const LABEL = "@com.sap.vocabularies.Common.v1.Label";
-		const filenameLabel  = (metaModel.getObject(`${metaPath}/filename${LABEL}`)  as string | undefined) ?? "filename";
-		const createdAtLabel = (metaModel.getObject(`${metaPath}/createdAt${LABEL}`) as string | undefined) ?? "createdAt";
-		const createdByLabel = (metaModel.getObject(`${metaPath}/createdBy${LABEL}`) as string | undefined) ?? "createdBy";
-		const columns = table.getColumns();
-		(columns[0].getHeader() as Text).setText(filenameLabel);
-		(columns[1].getHeader() as Text).setText(createdAtLabel);
-		(columns[2].getHeader() as Text).setText(createdByLabel);
+		const filenameLabel = (metaModel.getObject(`${metaPath}/filename${LABEL}`) as string | undefined) ?? "filename";
+
+		const displayProps = this.getDisplayProperties() as string[];
+		const displayLabels = displayProps.map(
+			(prop) => (metaModel.getObject(`${metaPath}/${prop}${LABEL}`) as string | undefined) ?? prop
+		);
+
+		// Rebuild columns: filename (always first) + displayProperties + delete (always last)
+		table.removeAllColumns();
+		table.addColumn(new Column({ header: new Text({ text: filenameLabel }) }));
+		displayLabels.forEach((label) => {
+			table.addColumn(new Column({ header: new Text({ text: label }) }));
+		});
+		table.addColumn(new Column({ hAlign: "End", width: "4rem" }));
+
 		const canOperate = this._computeCanOperate();
 		this._uploadPlugin.setUploadEnabled(canOperate);
 
@@ -236,18 +251,7 @@ export default class MultiFileUpload extends Control {
 							}
 						}
 					}),
-					new Text({
-						text: {
-							model: mn,
-							path: "createdAt",
-							formatter: (value: Date | string | null) => {
-								if (!value) return "";
-								const d = typeof value === "string" ? new Date(value) : value;
-								return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
-							}
-						}
-					}),
-					new Text({ text: { model: mn, path: "createdBy" } }),
+					...displayProps.map((prop) => this._createCellForProp(prop, mn)),
 					new Button({
 						icon: "sap-icon://decline",
 						type: "Transparent",
@@ -258,6 +262,27 @@ export default class MultiFileUpload extends Control {
 			}),
 			templateShareable: false
 		});
+	}
+
+	/**
+	 * Creates the appropriate table cell control for a given attachment property.
+	 * "createdAt" gets a date formatter; all other properties use plain text binding.
+	 */
+	private _createCellForProp(prop: string, mn: string | undefined): Text {
+		if (prop === "createdAt") {
+			return new Text({
+				text: {
+					model: mn,
+					path: "createdAt",
+					formatter: (value: Date | string | null) => {
+						if (!value) return "";
+						const d = typeof value === "string" ? new Date(value) : value;
+						return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+					}
+				}
+			});
+		}
+		return new Text({ text: { model: mn, path: prop } });
 	}
 
 	private _onBeforeUploadStarts(event: Event): void {

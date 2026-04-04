@@ -38,6 +38,19 @@ sap.ui.define([
 		const oControl = new MultiFileUpload();
 		assert.equal(oControl.getDraftOnly(), true, "draftOnly default is true");
 		assert.equal(oControl.getEnabled(), true, "enabled default is true");
+		assert.deepEqual(oControl.getDisplayProperties(), ["createdAt", "createdBy"], "displayProperties default is [createdAt, createdBy]");
+		oControl.destroy();
+	});
+
+	QUnit.test("displayProperties can be set to empty array", function(assert) {
+		const oControl = new MultiFileUpload({ displayProperties: [] });
+		assert.deepEqual(oControl.getDisplayProperties(), [], "empty displayProperties");
+		oControl.destroy();
+	});
+
+	QUnit.test("displayProperties can be configured with custom properties", function(assert) {
+		const oControl = new MultiFileUpload({ displayProperties: ["mimeType", "createdAt"] });
+		assert.deepEqual(oControl.getDisplayProperties(), ["mimeType", "createdAt"], "custom displayProperties returned correctly");
 		oControl.destroy();
 	});
 
@@ -507,16 +520,15 @@ sap.ui.define([
 	}
 
 	function makeMockTable() {
-		function makeTextControl() {
-			return { setText: function() {}, getText: function() { return ""; } };
-		}
-		const cols = [
-			{ getHeader: function() { return makeTextControl(); } },
-			{ getHeader: function() { return makeTextControl(); } },
-			{ getHeader: function() { return makeTextControl(); } },
-			{ getHeader: function() { return makeTextControl(); } }
-		];
-		return { setBindingContext: function() {}, bindItems: function() {}, getColumns: function() { return cols; } };
+		const _columns = [];
+		return {
+			setBindingContext: function() {},
+			bindItems: function() {},
+			getColumns: function() { return _columns; },
+			removeAllColumns: function() { _columns.length = 0; },
+			addColumn: function(col) { _columns.push(col); },
+			getItems: function() { return []; }
+		};
 	}
 
 	QUnit.test("upload button disabled after binding active entity with draftOnly=true", function(assert) {
@@ -680,29 +692,21 @@ sap.ui.define([
 		};
 	}
 
-	function makeMockTableWithStableHeaders() {
-		function makeStableText() {
-			let _text = "";
-			return { setText: function(t: string) { _text = t; }, getText: function() { return _text; } };
-		}
-		const texts = [makeStableText(), makeStableText(), makeStableText()];
-		const cols = [
-			{ getHeader: function() { return texts[0]; } },
-			{ getHeader: function() { return texts[1]; } },
-			{ getHeader: function() { return texts[2]; } },
-			{ getHeader: function() { return makeStableText(); } }
-		];
+	function makeMockTableForColumns() {
+		const _columns = [];
 		return {
 			setBindingContext: function() {},
 			bindItems: function() {},
-			getColumns: function() { return cols; },
-			_texts: texts
+			getColumns: function() { return _columns; },
+			removeAllColumns: function() { _columns.length = 0; },
+			addColumn: function(col) { _columns.push(col); },
+			getItems: function() { return []; }
 		};
 	}
 
 	QUnit.test("TC-Unit-1: sets column headers from @Common.Label annotations when all labels are present", function(assert) {
 		const oControl = new MultiFileUpload({ attachments: "{attachments}" });
-		const mockTable = makeMockTableWithStableHeaders();
+		const mockTable = makeMockTableForColumns();
 		const mockContext = makeMockContextWithMetaModel({
 			filename: "Dateiname",
 			createdAt: "Angelegt am",
@@ -713,15 +717,16 @@ sap.ui.define([
 
 		oControl._bindTableItems(mockContext);
 
-		assert.equal(mockTable._texts[0].getText(), "Dateiname",   "filename column header from metamodel");
-		assert.equal(mockTable._texts[1].getText(), "Angelegt am", "createdAt column header from metamodel");
-		assert.equal(mockTable._texts[2].getText(), "Angelegt von","createdBy column header from metamodel");
+		const cols = mockTable.getColumns();
+		assert.equal(cols[0].getHeader().getText(), "Dateiname",   "filename column header from metamodel");
+		assert.equal(cols[1].getHeader().getText(), "Angelegt am", "createdAt column header from metamodel");
+		assert.equal(cols[2].getHeader().getText(), "Angelegt von","createdBy column header from metamodel");
 		oControl.destroy();
 	});
 
 	QUnit.test("TC-Unit-2: falls back to property name when @Common.Label annotation is absent", function(assert) {
 		const oControl = new MultiFileUpload({ attachments: "{attachments}" });
-		const mockTable = makeMockTableWithStableHeaders();
+		const mockTable = makeMockTableForColumns();
 		const mockContext = makeMockContextWithMetaModel({
 			filename: undefined,
 			createdAt: undefined,
@@ -732,15 +737,16 @@ sap.ui.define([
 
 		oControl._bindTableItems(mockContext);
 
-		assert.equal(mockTable._texts[0].getText(), "filename",  "filename fallback to property name");
-		assert.equal(mockTable._texts[1].getText(), "createdAt", "createdAt fallback to property name");
-		assert.equal(mockTable._texts[2].getText(), "createdBy", "createdBy fallback to property name");
+		const cols = mockTable.getColumns();
+		assert.equal(cols[0].getHeader().getText(), "filename",  "filename fallback to property name");
+		assert.equal(cols[1].getHeader().getText(), "createdAt", "createdAt fallback to property name");
+		assert.equal(cols[2].getHeader().getText(), "createdBy", "createdBy fallback to property name");
 		oControl.destroy();
 	});
 
 	QUnit.test("TC-Unit-3: uses label for found annotations and falls back for missing ones", function(assert) {
 		const oControl = new MultiFileUpload({ attachments: "{attachments}" });
-		const mockTable = makeMockTableWithStableHeaders();
+		const mockTable = makeMockTableForColumns();
 		const mockContext = makeMockContextWithMetaModel({
 			filename: "File Name",
 			createdAt: undefined,
@@ -751,9 +757,80 @@ sap.ui.define([
 
 		oControl._bindTableItems(mockContext);
 
-		assert.equal(mockTable._texts[0].getText(), "File Name",  "filename from annotation");
-		assert.equal(mockTable._texts[1].getText(), "createdAt",  "createdAt fallback (no annotation)");
-		assert.equal(mockTable._texts[2].getText(), "Created By", "createdBy from annotation");
+		const cols = mockTable.getColumns();
+		assert.equal(cols[0].getHeader().getText(), "File Name",  "filename from annotation");
+		assert.equal(cols[1].getHeader().getText(), "createdAt",  "createdAt fallback (no annotation)");
+		assert.equal(cols[2].getHeader().getText(), "Created By", "createdBy from annotation");
+		oControl.destroy();
+	});
+
+	// ─── Columns ──────────────────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - Columns");
+
+	function makeMockContextForColumns(labels) {
+		const metaPath = "/SomeService.Entity/attachments";
+		const mockMetaModel = {
+			getMetaPath: function() { return metaPath; },
+			getObject: function(path) {
+				for (const prop of Object.keys(labels)) {
+					if (path.includes("/" + prop + "@")) return labels[prop];
+				}
+				return undefined;
+			}
+		};
+		return {
+			getPath: function() { return "/Entity(ID=abc,IsActiveEntity=false)"; },
+			getModel: function() {
+				return {
+					getServiceUrl: function() { return "/odata/v4/service/"; },
+					getMetaModel: function() { return mockMetaModel; }
+				};
+			},
+			getObject: function() { return { IsActiveEntity: false }; }
+		};
+	}
+
+	QUnit.test("TC-Unit-4: default displayProperties produces filename + createdAt + createdBy + delete (4 columns)", function(assert) {
+		const oControl = new MultiFileUpload({ attachments: "{attachments}" });
+		const mockTable = makeMockTable();
+		const mockContext = makeMockContextForColumns({ filename: "File Name", createdAt: "Created At", createdBy: "Created By" });
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(mockTable);
+
+		oControl._bindTableItems(mockContext);
+
+		assert.equal(mockTable.getColumns().length, 4, "4 columns: filename + 2 defaults + delete");
+		oControl.destroy();
+	});
+
+	QUnit.test("TC-Unit-5: displayProperties=[] produces only filename + delete (2 columns)", function(assert) {
+		const oControl = new MultiFileUpload({ attachments: "{attachments}", displayProperties: [] });
+		const mockTable = makeMockTable();
+		const mockContext = makeMockContextForColumns({ filename: "File Name" });
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(mockTable);
+
+		oControl._bindTableItems(mockContext);
+
+		assert.equal(mockTable.getColumns().length, 2, "2 columns: filename + delete only");
+		oControl.destroy();
+	});
+
+	QUnit.test("TC-Unit-6: custom displayProperties produces correct column count and headers", function(assert) {
+		const oControl = new MultiFileUpload({ attachments: "{attachments}", displayProperties: ["mimeType", "createdAt"] });
+		const mockTable = makeMockTable();
+		const mockContext = makeMockContextForColumns({ filename: "File Name", mimeType: "MIME Type", createdAt: "Created At" });
+		sinon.stub(oControl, "getBindingContext").returns(mockContext);
+		sinon.stub(oControl, "getAggregation").returns(mockTable);
+
+		oControl._bindTableItems(mockContext);
+
+		const cols = mockTable.getColumns();
+		assert.equal(cols.length, 4, "4 columns: filename + mimeType + createdAt + delete");
+		assert.equal(cols[0].getHeader().getText(), "File Name",  "filename column from metamodel");
+		assert.equal(cols[1].getHeader().getText(), "MIME Type",  "mimeType column from metamodel");
+		assert.equal(cols[2].getHeader().getText(), "Created At", "createdAt column from metamodel");
 		oControl.destroy();
 	});
 });
