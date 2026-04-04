@@ -160,7 +160,7 @@ export default class MultiFileUpload extends Control {
 	/**
 	 * Waits for OData metadata to be loaded before building columns and binding items.
 	 * Using getObject() synchronously fails in freestyle apps where metadata is not yet
-	 * fetched at render time — requestMetadata() ensures labels resolve correctly.
+	 * fetched at render time — requestObject("/") ensures labels resolve correctly.
 	 */
 	private _scheduleBindTableItems(context: ODataV4Context): void {
 		const targetPath = context.getPath();
