@@ -18,6 +18,7 @@ import ActionsPlaceholder from "sap/m/upload/ActionsPlaceholder";
 import { UploadSetwithTableActionPlaceHolder } from "sap/m/library";
 import Event from "sap/ui/base/Event";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
+import ODataModel from "sap/ui/model/odata/v4/ODataModel";
 import MultiFileUploadRenderer from "./MultiFileUploadRenderer";
 
 /**
@@ -101,9 +102,9 @@ export default class MultiFileUpload extends Control {
 		const oTable = new Table({
 			headerToolbar: new Toolbar({ content: [new ToolbarSpacer(), oPlaceholder] }),
 			columns: [
-				new Column({ header: new Text({ text: "File Name" }) }),
-				new Column({ header: new Text({ text: "Created At" }) }),
-				new Column({ header: new Text({ text: "Created By" }) }),
+				new Column({ header: new Text({ text: "" }) }),
+				new Column({ header: new Text({ text: "" }) }),
+				new Column({ header: new Text({ text: "" }) }),
 				new Column({ hAlign: "End", width: "4rem" })
 			]
 		});
@@ -198,8 +199,20 @@ export default class MultiFileUpload extends Control {
 		const mn = modelName;
 		const table = this.getAggregation("_table") as Table;
 		table.setBindingContext(parentContext, mn);
-		const model = parentContext.getModel() as unknown as { getServiceUrl(): string };
+		const model = parentContext.getModel() as ODataModel;
 		const serviceUrl = model.getServiceUrl().replace(/\/$/, "");
+
+		// Resolve column labels from OData V4 metamodel (@Common.Label)
+		const metaModel = model.getMetaModel();
+		const metaPath = metaModel.getMetaPath(`${parentContext.getPath()}/${segment}`);
+		const LABEL = "@com.sap.vocabularies.Common.v1.Label";
+		const filenameLabel  = (metaModel.getObject(`${metaPath}/filename${LABEL}`)  as string | undefined) ?? "filename";
+		const createdAtLabel = (metaModel.getObject(`${metaPath}/createdAt${LABEL}`) as string | undefined) ?? "createdAt";
+		const createdByLabel = (metaModel.getObject(`${metaPath}/createdBy${LABEL}`) as string | undefined) ?? "createdBy";
+		const columns = table.getColumns();
+		(columns[0].getHeader() as Text).setText(filenameLabel);
+		(columns[1].getHeader() as Text).setText(createdAtLabel);
+		(columns[2].getHeader() as Text).setText(createdByLabel);
 		const canOperate = this._computeCanOperate();
 		this._uploadPlugin.setUploadEnabled(canOperate);
 
