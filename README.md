@@ -22,7 +22,7 @@ A control for uploading and downloading a **single file** stored as a `LargeBina
 
 A control for managing **multiple file attachments** on an OData entity, backed by the `@cap-js/attachments` composition pattern.
 
-- Displays a table of attached files (file name, created date, created by) with per-row delete buttons and an upload button in the toolbar.
+- Displays a table of attached files with per-row delete buttons and an upload button in the toolbar. The columns shown between the fixed File Name and Delete columns are controlled by the `displayProperties` property.
 - Automatically binds to the attachments navigation property from the parent entity's binding context.
 - Supports both draft-enabled and non-draft entities.
 
@@ -119,11 +119,28 @@ With a named model, custom navigation property, and automatic draft management:
     draftOnly="false" />
 ```
 
+Showing only the MIME type column (no created date / created by):
+
+```xml
+<upload:MultiFileUpload
+    attachments="{attachments}"
+    displayProperties="mimeType" />
+```
+
+Showing MIME type and created date in that order:
+
+```xml
+<upload:MultiFileUpload
+    attachments="{attachments}"
+    displayProperties="mimeType,createdAt" />
+```
+
 #### Properties
 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `attachments` | `object` (binding) | `null` | Bound to the navigation property segment for the attachments composition (e.g. `attachments="{myModel>files}"`). The binding path is used as the OData navigation segment in POST/DELETE requests; the model name is used to resolve the binding context. Omit the model prefix for the default (unnamed) model: `attachments="{attachments}"` |
+| `displayProperties` | `string` (comma-separated) | `"createdAt,createdBy"` | Ordered list of attachment property names to display as columns between the fixed File Name column (first) and the Delete column (last). Column headers are resolved from `@Common.Label` annotations in the OData metadata; the raw property name is used as a fallback. Example: `displayProperties="mimeType,createdAt"` |
 | `draftOnly` | `boolean` | `true` | When `true`, upload and delete are enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
 | `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
 
