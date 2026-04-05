@@ -5,8 +5,9 @@
 sap.ui.define([
 	"sap/ui/qunit/utils/createAndAppendDiv",
 	"miyasuta/ui5uploadcontrols/SingleFileUpload",
-	"sap/ui/core/Core"
-], function(createAndAppendDiv, SingleFileUpload, Core) {
+	"sap/ui/core/Core",
+	"sap/m/MessageBox"
+], function(createAndAppendDiv, SingleFileUpload, Core, MessageBox) {
 	"use strict";
 
 	// prepare DOM
@@ -1009,6 +1010,63 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 			oControl.destroy();
 			done();
 		}.bind(this));
+	});
+
+	// ─── File Type Filtering ─────────────────────────────────────────────────
+
+	QUnit.module("SingleFileUpload - File Type Filtering", {
+		beforeEach: function() {
+			this.oControl = new SingleFileUpload({ fileName: "{fileName}" });
+			this.messageBoxStub = sinon.stub(MessageBox, "error");
+		},
+		afterEach: function() {
+			this.messageBoxStub.restore();
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("TC-FT-SFU-1: setMediaTypes forwards parsed array to FileUploader mimeType", function(assert) {
+		this.oControl.setMediaTypes("application/pdf,image/png");
+		const fu = this.oControl.getAggregation("_fileUploader");
+		assert.deepEqual(fu.getMimeType(), ["application/pdf", "image/png"], "FileUploader mimeType set correctly");
+	});
+
+	QUnit.test("TC-FT-SFU-2: setFileTypes forwards parsed array to FileUploader fileType", function(assert) {
+		this.oControl.setFileTypes("pdf,png");
+		const fu = this.oControl.getAggregation("_fileUploader");
+		assert.deepEqual(fu.getFileType(), ["pdf", "png"], "FileUploader fileType set correctly");
+	});
+
+	QUnit.test("TC-FT-SFU-3: setFileTypes strips leading dots", function(assert) {
+		this.oControl.setFileTypes(".pdf,.png");
+		const fu = this.oControl.getAggregation("_fileUploader");
+		assert.deepEqual(fu.getFileType(), ["pdf", "png"], "leading dots stripped from fileTypes");
+	});
+
+	QUnit.test("TC-FT-SFU-4: typeMissmatch event shows MessageBox error with file name and extension", function(assert) {
+		const fu = this.oControl.getAggregation("_fileUploader");
+		fu.fireTypeMissmatch({ fileName: "doc.txt", fileType: "txt", mimeType: "text/plain" });
+		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
+		const msg = this.messageBoxStub.getCall(0).args[0];
+		assert.ok(msg.includes("doc.txt"), "error message includes file name");
+		assert.ok(msg.includes(".txt"), "error message includes extension");
+	});
+
+	QUnit.test("TC-FT-SFU-5: typeMissmatch event with only fileType shows error without crash", function(assert) {
+		const fu = this.oControl.getAggregation("_fileUploader");
+		fu.fireTypeMissmatch({ fileName: "archive.zip", fileType: "zip" });
+		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
+	});
+
+	QUnit.test("TC-FT-SFU-6: typeMissmatch event with no parameters shows error without crash", function(assert) {
+		const fu = this.oControl.getAggregation("_fileUploader");
+		fu.fireTypeMissmatch({});
+		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
+	});
+
+	QUnit.test("TC-FT-SFU-7: default mediaTypes null — FileUploader has no mimeType restriction", function(assert) {
+		const fu = this.oControl.getAggregation("_fileUploader");
+		assert.notOk(fu.getMimeType()?.length, "default: FileUploader mimeType is empty or undefined (no restriction)");
 	});
 
 });

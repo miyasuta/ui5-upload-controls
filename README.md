@@ -92,6 +92,35 @@ With a named model and automatic draft management:
 | `draftOnly` | `boolean` | `true` | When `true`, upload is enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
 | `width` | `sap.ui.core.CSSSize` | `"auto"` | Width of the control |
 | `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
+| `mediaTypes` | `string` | `null` | Comma-separated MIME types allowed (e.g. `"application/pdf,image/png"`). `null` means no restriction |
+| `fileTypes` | `string` | `null` | Comma-separated file extensions allowed, leading dots optional (e.g. `"pdf,png"`). `null` means no restriction |
+
+#### File Type Filtering
+
+Use `mediaTypes` and/or `fileTypes` to restrict which files a user can select. Specifying both provides the most robust client-side check.
+
+```xml
+<!-- Both properties together — most robust -->
+<upload:SingleFileUpload
+    fileName="{fileName}"
+    contentProperty="content"
+    mediaTypes="application/pdf,image/png"
+    fileTypes="pdf,png" />
+
+<!-- mediaTypes only — use when a wildcard covers multiple extensions (e.g. all images) -->
+<upload:SingleFileUpload
+    fileName="{fileName}"
+    contentProperty="content"
+    mediaTypes="image/*" />
+
+<!-- fileTypes only — use when MIME type is unreliable (varies by OS) -->
+<upload:SingleFileUpload
+    fileName="{fileName}"
+    contentProperty="content"
+    fileTypes="pdf,xlsx" />
+```
+
+The browser file picker shows only allowed types. Drag & drop is not visually restricted, but the control shows an error dialog and blocks the upload if a dropped file does not match.
 
 ---
 
@@ -143,6 +172,32 @@ Showing MIME type and created date in that order:
 | `displayProperties` | `string` (comma-separated) | `"createdAt,createdBy"` | Ordered list of attachment property names to display as columns between the fixed File Name column (first) and the Delete column (last). Column headers are resolved from `@Common.Label` annotations in the OData metadata; the raw property name is used as a fallback. Example: `displayProperties="mimeType,createdAt"` |
 | `draftOnly` | `boolean` | `true` | When `true`, upload and delete are enabled only while the entity is in draft mode. When `false`, the control manages the draft lifecycle automatically (see [Draft Handling](#draft-handling)) |
 | `enabled` | `boolean` | `true` | Master switch. When `false`, upload and delete are disabled regardless of draft state |
+| `mediaTypes` | `string` | `null` | Comma-separated MIME types allowed (e.g. `"application/pdf,image/png"`). `null` means no restriction |
+| `fileTypes` | `string` | `null` | Comma-separated file extensions allowed, leading dots optional (e.g. `"pdf,png"`). `null` means no restriction |
+
+#### File Type Filtering
+
+Use `mediaTypes` and/or `fileTypes` to restrict which files a user can upload. Specifying both provides the most robust client-side check.
+
+```xml
+<!-- Both properties together — most robust -->
+<upload:MultiFileUpload
+    attachments="{attachments}"
+    mediaTypes="application/pdf,image/png"
+    fileTypes="pdf,png" />
+
+<!-- mediaTypes only — use when a wildcard covers multiple extensions (e.g. all images) -->
+<upload:MultiFileUpload
+    attachments="{attachments}"
+    mediaTypes="image/*" />
+
+<!-- fileTypes only — use when MIME type is unreliable (varies by OS) -->
+<upload:MultiFileUpload
+    attachments="{attachments}"
+    fileTypes="pdf,xlsx" />
+```
+
+The browser file picker shows only allowed types. Drag & drop is not visually restricted, but the control shows an error dialog and blocks the upload if a dropped file does not match. For backend enforcement, annotate the CAP `Attachments` entity with `@Core.AcceptableMediaTypes`.
 
 ---
 

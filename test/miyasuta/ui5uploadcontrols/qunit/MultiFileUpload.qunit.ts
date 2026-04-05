@@ -5,8 +5,9 @@
 sap.ui.define([
 	"sap/ui/qunit/utils/createAndAppendDiv",
 	"miyasuta/ui5uploadcontrols/MultiFileUpload",
-	"sap/ui/core/Core"
-], function(createAndAppendDiv, MultiFileUpload, Core) {
+	"sap/ui/core/Core",
+	"sap/m/MessageBox"
+], function(createAndAppendDiv, MultiFileUpload, Core, MessageBox) {
 	"use strict";
 
 	// prepare DOM
@@ -833,5 +834,55 @@ sap.ui.define([
 		assert.equal(cols[1].getHeader().getText(), "MIME Type",  "mimeType column from metamodel");
 		assert.equal(cols[2].getHeader().getText(), "Created At", "createdAt column from metamodel");
 		oControl.destroy();
+	});
+
+	// ─── File Type Filtering ─────────────────────────────────────────────────
+
+	QUnit.module("MultiFileUpload - File Type Filtering", {
+		beforeEach: function() {
+			this.oControl = new MultiFileUpload({ attachments: "{attachments}" });
+			this.messageBoxStub = sinon.stub(MessageBox, "error");
+		},
+		afterEach: function() {
+			this.messageBoxStub.restore();
+			this.oControl.destroy();
+		}
+	});
+
+	QUnit.test("TC-FT-MFU-1: setMediaTypes forwards parsed array to plugin", function(assert) {
+		this.oControl.setMediaTypes("application/pdf,image/png");
+		const plugin = this.oControl._uploadPlugin;
+		assert.deepEqual(plugin.getMediaTypes(), ["application/pdf", "image/png"], "plugin receives parsed mediaTypes array");
+	});
+
+	QUnit.test("TC-FT-MFU-2: setFileTypes forwards parsed array to plugin", function(assert) {
+		this.oControl.setFileTypes("pdf,png");
+		const plugin = this.oControl._uploadPlugin;
+		assert.deepEqual(plugin.getFileTypes(), ["pdf", "png"], "plugin receives parsed fileTypes array");
+	});
+
+	QUnit.test("TC-FT-MFU-3: setFileTypes strips leading dots", function(assert) {
+		this.oControl.setFileTypes(".pdf,.png");
+		const plugin = this.oControl._uploadPlugin;
+		assert.deepEqual(plugin.getFileTypes(), ["pdf", "png"], "leading dots stripped from fileTypes");
+	});
+
+	QUnit.test("TC-FT-MFU-4: fileTypeMismatch event shows MessageBox error with file name", function(assert) {
+		const mockItem = { getFileName: function() { return "report.txt"; } };
+		this.oControl._onTypeMismatch({ getParameters: function() { return { item: mockItem }; } });
+		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
+		assert.ok(this.messageBoxStub.getCall(0).args[0].includes("report.txt"), "error message includes file name");
+	});
+
+	QUnit.test("TC-FT-MFU-5: mediaTypeMismatch event shows MessageBox error with file name", function(assert) {
+		const mockItem = { getFileName: function() { return "image.bmp"; } };
+		this.oControl._onTypeMismatch({ getParameters: function() { return { item: mockItem }; } });
+		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
+		assert.ok(this.messageBoxStub.getCall(0).args[0].includes("image.bmp"), "error message includes file name");
+	});
+
+	QUnit.test("TC-FT-MFU-6: default mediaTypes null — plugin has no restriction", function(assert) {
+		const plugin = this.oControl._uploadPlugin;
+		assert.notOk(plugin.getMediaTypes()?.length, "default: plugin mediaTypes is empty or undefined (no restriction)");
 	});
 });

@@ -6,7 +6,7 @@
 import Control from "sap/ui/core/Control";
 import { PropertyBindingInfo } from "sap/ui/base/ManagedObject";
 import FileUploader from "sap/ui/unified/FileUploader";
-import { FileUploader$ChangeEvent } from "sap/ui/unified/FileUploader";
+import { FileUploader$ChangeEvent, FileUploader$TypeMissmatchEvent } from "sap/ui/unified/FileUploader";
 import Link from "sap/m/Link";
 import Button from "sap/m/Button";
 import MessageBox from "sap/m/MessageBox";
@@ -79,6 +79,27 @@ export default class SingleFileUpload extends Control {
 				type: "boolean",
 				group: "Behavior",
 				defaultValue: true
+			},
+			/**
+			 * Comma-separated list of allowed MIME types (e.g. "application/pdf,image/png").
+			 * Files whose MIME type does not match are rejected before upload.
+			 * Null means no MIME type restriction.
+			 */
+			mediaTypes: {
+				type: "string",
+				group: "Behavior",
+				defaultValue: null
+			},
+			/**
+			 * Comma-separated list of allowed file extensions (e.g. "pdf,png").
+			 * Leading dots are stripped automatically (e.g. ".pdf" is treated as "pdf").
+			 * Files whose extension does not match are rejected before upload.
+			 * Null means no file extension restriction.
+			 */
+			fileTypes: {
+				type: "string",
+				group: "Behavior",
+				defaultValue: null
 			}
 		},
 		aggregations: {
@@ -94,7 +115,8 @@ export default class SingleFileUpload extends Control {
 	override init(): void {
 		const oFileUploader = new FileUploader({
 			width: "auto",
-			change: this._onFileChange.bind(this)
+			change: this._onFileChange.bind(this),
+			typeMissmatch: this._onTypeMissmatch.bind(this)
 		});
 		this.setAggregation("_fileUploader", oFileUploader);
 
@@ -168,6 +190,42 @@ export default class SingleFileUpload extends Control {
 		// Fallback: getObject() for non-draft entities or when path is unavailable
 		const obj = context?.getObject() as Record<string, unknown> | undefined;
 		return !(obj?.IsActiveEntity === true);
+	}
+
+	private _parseTypes(value: string | null, stripDots = false): string[] {
+		if (!value) return [];
+		return value.split(",")
+			.map((s) => {
+				const t = s.trim();
+				return stripDots ? t.replace(/^\./, "") : t;
+			})
+			.filter(Boolean);
+	}
+
+	setMediaTypes(value: string): this {
+		this.setProperty("mediaTypes", value, true);
+		const fu = this.getAggregation("_fileUploader") as FileUploader;
+		fu.setMimeType(this._parseTypes(value));
+		return this;
+	}
+
+	setFileTypes(value: string): this {
+		this.setProperty("fileTypes", value, true);
+		const fu = this.getAggregation("_fileUploader") as FileUploader;
+		fu.setFileType(this._parseTypes(value, true));
+		return this;
+	}
+
+	private _onTypeMissmatch(event: FileUploader$TypeMissmatchEvent): void {
+		const fileName = event.getParameter("fileName") as string | undefined;
+		const fileType = event.getParameter("fileType") as string | undefined;
+		const mimeType = event.getParameter("mimeType") as string | undefined;
+		const parts: string[] = [];
+		if (fileType) parts.push(`extension ".${fileType}"`);
+		if (mimeType) parts.push(`MIME type "${mimeType}"`);
+		const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+		const name = fileName ? `"${fileName}"` : "The selected file";
+		MessageBox.error(`${name} is not allowed${detail}.`);
 	}
 
 	override onBeforeRendering(): void {

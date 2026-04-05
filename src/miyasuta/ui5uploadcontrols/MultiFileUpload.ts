@@ -16,6 +16,7 @@ import ToolbarSpacer from "sap/m/ToolbarSpacer";
 import UploadSetwithTable from "sap/m/plugins/UploadSetwithTable";
 import ActionsPlaceholder from "sap/m/upload/ActionsPlaceholder";
 import { UploadSetwithTableActionPlaceHolder } from "sap/m/library";
+import MessageBox from "sap/m/MessageBox";
 import Event from "sap/ui/base/Event";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import ODataModel from "sap/ui/model/odata/v4/ODataModel";
@@ -75,6 +76,27 @@ export default class MultiFileUpload extends Control {
 				defaultValue: true
 			},
 			/**
+			 * Comma-separated list of allowed MIME types (e.g. "application/pdf,image/png").
+			 * Files whose MIME type does not match are rejected before upload.
+			 * Null means no MIME type restriction.
+			 */
+			mediaTypes: {
+				type: "string",
+				group: "Behavior",
+				defaultValue: null
+			},
+			/**
+			 * Comma-separated list of allowed file extensions (e.g. "pdf,png").
+			 * Leading dots are stripped automatically (e.g. ".pdf" is treated as "pdf").
+			 * Files whose extension does not match are rejected before upload.
+			 * Null means no file extension restriction.
+			 */
+			fileTypes: {
+				type: "string",
+				group: "Behavior",
+				defaultValue: null
+			},
+			/**
 			 * Ordered list of attachment property names to display as columns between
 			 * the fixed File Name column (first) and the Delete button column (last).
 			 * Available names: any property of the Attachments entity, e.g. "createdAt", "createdBy", "mimeType".
@@ -102,6 +124,8 @@ export default class MultiFileUpload extends Control {
 
 		this._uploadPlugin = new UploadSetwithTable(sPluginId, {
 			beforeUploadStarts: this._onBeforeUploadStarts.bind(this),
+			fileTypeMismatch: this._onTypeMismatch.bind(this),
+			mediaTypeMismatch: this._onTypeMismatch.bind(this),
 			actions: [sPlaceholderId]
 		});
 
@@ -211,6 +235,33 @@ export default class MultiFileUpload extends Control {
 		// Fallback: getObject() for non-draft entities or when path is unavailable
 		const obj = context?.getObject() as Record<string, unknown> | undefined;
 		return !(obj?.IsActiveEntity === true);
+	}
+
+	private _parseTypes(value: string | null, stripDots = false): string[] {
+		if (!value) return [];
+		return value.split(",")
+			.map((s) => {
+				const t = s.trim();
+				return stripDots ? t.replace(/^\./, "") : t;
+			})
+			.filter(Boolean);
+	}
+
+	setMediaTypes(value: string): this {
+		this.setProperty("mediaTypes", value, true);
+		this._uploadPlugin.setMediaTypes(this._parseTypes(value));
+		return this;
+	}
+
+	setFileTypes(value: string): this {
+		this.setProperty("fileTypes", value, true);
+		this._uploadPlugin.setFileTypes(this._parseTypes(value, true));
+		return this;
+	}
+
+	private _onTypeMismatch(event: Event): void {
+		const item = (event.getParameters() as { item: { getFileName(): string } }).item;
+		MessageBox.error(`The file "${item.getFileName()}" is not allowed.`);
 	}
 
 	private _bindTableItems(parentContext: ODataV4Context): void {
