@@ -11,6 +11,7 @@ import Link from "sap/m/Link";
 import Button from "sap/m/Button";
 import MessageBox from "sap/m/MessageBox";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
+import Lib from "sap/ui/core/Lib";
 import SingleFileUploadRenderer from "./SingleFileUploadRenderer";
 
 /**
@@ -218,14 +219,9 @@ export default class SingleFileUpload extends Control {
 
 	private _onTypeMissmatch(event: FileUploader$TypeMissmatchEvent): void {
 		const fileName = event.getParameter("fileName") as string | undefined;
-		const fileType = event.getParameter("fileType") as string | undefined;
-		const mimeType = event.getParameter("mimeType") as string | undefined;
-		const parts: string[] = [];
-		if (fileType) parts.push(`extension ".${fileType}"`);
-		if (mimeType) parts.push(`MIME type "${mimeType}"`);
-		const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-		const name = fileName ? `"${fileName}"` : "The selected file";
-		MessageBox.error(`${name} is not allowed${detail}.`);
+		const bundle = Lib.getResourceBundleFor("miyasuta.ui5uploadcontrols")!;
+		const name = fileName ?? bundle.getText("UNKNOWN_FILE_NAME")!;
+		MessageBox.error(bundle.getText("FILE_NOT_ALLOWED", [name])!);
 	}
 
 	override onBeforeRendering(): void {

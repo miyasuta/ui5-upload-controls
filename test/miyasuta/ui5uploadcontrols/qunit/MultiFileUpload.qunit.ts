@@ -6,8 +6,9 @@ sap.ui.define([
 	"sap/ui/qunit/utils/createAndAppendDiv",
 	"miyasuta/ui5uploadcontrols/MultiFileUpload",
 	"sap/ui/core/Core",
-	"sap/m/MessageBox"
-], function(createAndAppendDiv, MultiFileUpload, Core, MessageBox) {
+	"sap/m/MessageBox",
+	"sap/ui/core/Lib"
+], function(createAndAppendDiv, MultiFileUpload, Core, MessageBox, Lib) {
 	"use strict";
 
 	// prepare DOM
@@ -842,8 +843,11 @@ sap.ui.define([
 		beforeEach: function() {
 			this.oControl = new MultiFileUpload({ attachments: "{attachments}" });
 			this.messageBoxStub = sinon.stub(MessageBox, "error");
+			this.bundleMock = { getText: sinon.stub().callsFake(function(key, args) { return key + (args ? ":" + args[0] : ""); }) };
+			this.libStub = sinon.stub(Lib, "getResourceBundleFor").returns(this.bundleMock);
 		},
 		afterEach: function() {
+			this.libStub.restore();
 			this.messageBoxStub.restore();
 			this.oControl.destroy();
 		}
@@ -867,18 +871,20 @@ sap.ui.define([
 		assert.deepEqual(plugin.getFileTypes(), ["pdf", "png"], "leading dots stripped from fileTypes");
 	});
 
-	QUnit.test("TC-FT-MFU-4: fileTypeMismatch event shows MessageBox error with file name", function(assert) {
+	QUnit.test("TC-FT-MFU-4: fileTypeMismatch event shows localized MessageBox error with file name", function(assert) {
 		const mockItem = { getFileName: function() { return "report.txt"; } };
 		this.oControl._onTypeMismatch({ getParameters: function() { return { item: mockItem }; } });
 		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
-		assert.ok(this.messageBoxStub.getCall(0).args[0].includes("report.txt"), "error message includes file name");
+		assert.ok(this.libStub.calledWith("miyasuta.ui5uploadcontrols"), "bundle loaded for library");
+		assert.ok(this.bundleMock.getText.calledWith("FILE_NOT_ALLOWED", ["report.txt"]), "correct key and file name passed to bundle");
 	});
 
-	QUnit.test("TC-FT-MFU-5: mediaTypeMismatch event shows MessageBox error with file name", function(assert) {
+	QUnit.test("TC-FT-MFU-5: mediaTypeMismatch event shows localized MessageBox error with file name", function(assert) {
 		const mockItem = { getFileName: function() { return "image.bmp"; } };
 		this.oControl._onTypeMismatch({ getParameters: function() { return { item: mockItem }; } });
 		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
-		assert.ok(this.messageBoxStub.getCall(0).args[0].includes("image.bmp"), "error message includes file name");
+		assert.ok(this.libStub.calledWith("miyasuta.ui5uploadcontrols"), "bundle loaded for library");
+		assert.ok(this.bundleMock.getText.calledWith("FILE_NOT_ALLOWED", ["image.bmp"]), "correct key and file name passed to bundle");
 	});
 
 	QUnit.test("TC-FT-MFU-6: default mediaTypes null — plugin has no restriction", function(assert) {

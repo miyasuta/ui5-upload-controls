@@ -6,8 +6,9 @@ sap.ui.define([
 	"sap/ui/qunit/utils/createAndAppendDiv",
 	"miyasuta/ui5uploadcontrols/SingleFileUpload",
 	"sap/ui/core/Core",
-	"sap/m/MessageBox"
-], function(createAndAppendDiv, SingleFileUpload, Core, MessageBox) {
+	"sap/m/MessageBox",
+	"sap/ui/core/Lib"
+], function(createAndAppendDiv, SingleFileUpload, Core, MessageBox, Lib) {
 	"use strict";
 
 	// prepare DOM
@@ -1018,8 +1019,11 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		beforeEach: function() {
 			this.oControl = new SingleFileUpload({ fileName: "{fileName}" });
 			this.messageBoxStub = sinon.stub(MessageBox, "error");
+			this.bundleMock = { getText: sinon.stub().callsFake(function(key, args) { return key + (args ? ":" + args[0] : ""); }) };
+			this.libStub = sinon.stub(Lib, "getResourceBundleFor").returns(this.bundleMock);
 		},
 		afterEach: function() {
+			this.libStub.restore();
 			this.messageBoxStub.restore();
 			this.oControl.destroy();
 		}
@@ -1043,13 +1047,12 @@ QUnit.test("full lifecycle: draftEdit → PATCH → PUT → draftActivate (5 fet
 		assert.deepEqual(fu.getFileType(), ["pdf", "png"], "leading dots stripped from fileTypes");
 	});
 
-	QUnit.test("TC-FT-SFU-4: typeMissmatch event shows MessageBox error with file name and extension", function(assert) {
+	QUnit.test("TC-FT-SFU-4: typeMissmatch event shows localized MessageBox error with file name", function(assert) {
 		const fu = this.oControl.getAggregation("_fileUploader");
 		fu.fireTypeMissmatch({ fileName: "doc.txt", fileType: "txt", mimeType: "text/plain" });
 		assert.ok(this.messageBoxStub.calledOnce, "MessageBox.error called once");
-		const msg = this.messageBoxStub.getCall(0).args[0];
-		assert.ok(msg.includes("doc.txt"), "error message includes file name");
-		assert.ok(msg.includes(".txt"), "error message includes extension");
+		assert.ok(this.libStub.calledWith("miyasuta.ui5uploadcontrols"), "bundle loaded for library");
+		assert.ok(this.bundleMock.getText.calledWith("FILE_NOT_ALLOWED", ["doc.txt"]), "correct key and file name passed to bundle");
 	});
 
 	QUnit.test("TC-FT-SFU-5: typeMissmatch event with only fileType shows error without crash", function(assert) {

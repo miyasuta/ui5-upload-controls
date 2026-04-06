@@ -45,6 +45,19 @@ A control for managing **multiple file attachments** on an OData entity, backed 
 
 ---
 
+## Internationalization (i18n)
+
+Error messages (e.g. file type mismatch) are displayed in the user's locale.
+The following locales are supported:
+
+| Locale | Language |
+|--------|----------|
+| `en` (default) | English |
+| `de` | German |
+| `ja` | Japanese |
+
+---
+
 ## Installation
 
 ```bash

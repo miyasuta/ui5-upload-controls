@@ -20,6 +20,7 @@ import MessageBox from "sap/m/MessageBox";
 import Event from "sap/ui/base/Event";
 import ODataV4Context from "sap/ui/model/odata/v4/Context";
 import ODataModel from "sap/ui/model/odata/v4/ODataModel";
+import Lib from "sap/ui/core/Lib";
 import MultiFileUploadRenderer from "./MultiFileUploadRenderer";
 
 /**
@@ -261,7 +262,8 @@ export default class MultiFileUpload extends Control {
 
 	private _onTypeMismatch(event: Event): void {
 		const item = (event.getParameters() as { item: { getFileName(): string } }).item;
-		MessageBox.error(`The file "${item.getFileName()}" is not allowed.`);
+		const bundle = Lib.getResourceBundleFor("miyasuta.ui5uploadcontrols")!;
+		MessageBox.error(bundle.getText("FILE_NOT_ALLOWED", [item.getFileName()])!);
 	}
 
 	private _bindTableItems(parentContext: ODataV4Context): void {
